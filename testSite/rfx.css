@@ -1,0 +1,97 @@
+.w3-metro-light-green
+{color:#fff;background-color:#99b433}
+.w3-metro-green
+{color:#fff;background-color:#00a300}
+.w3-metro-dark-green
+{color:#fff;background-color:#1e7145}
+.w3-metro-magenta
+{color:#fff;background-color:#ff0097}
+.w3-metro-light-purple
+{color:#fff;background-color:#9f00a7}
+.w3-metro-purple
+{color:#fff;background-color:#7e3878}
+.w3-metro-dark-purple
+{color:#fff;background-color:#603cba}
+.w3-metro-darken
+{color:#fff;background-color:#1d1d1d}
+.w3-metro-teal
+{color:#fff;background-color:#00aba9}
+.w3-metro-light-blue
+{color:#000;background-color:#eff4ff}
+.w3-metro-blue
+{color:#fff;background-color:#2d89ef}
+.w3-metro-dark-blue
+{color:#fff;background-color:#2b5797}
+.w3-metro-yellow
+{color:#fff;background-color:#ffc40d}
+.w3-metro-orange
+{color:#fff;background-color:#e3a21a}
+.w3-metro-dark-orange
+{color:#fff;background-color:#da532c}
+.w3-metro-red
+{color:#fff;background-color:#ee1111}
+.w3-metro-dark-red
+{color:#fff;background-color:#b91d47}
+.flex-container {
+    display: flex;
+}
+
+.flex-child {
+    flex: 1;
+    border: 2px solid yellow;
+}  
+
+.flex-child:first-child {
+    margin-right: 20px;
+} 
+.container {
+    height: 200px;
+    position: relative;
+    border: 3px solid green;
+  }
+.led{
+    width:16px;
+    height:16px;
+    background-color: "rgb(100,100,100)";
+    border-radius: 50%;
+    box-shadow: rgba(0, 0, 0, .2) 0 -1px 2px 2px, inset #444444 0 -2px 4px;
+    border-width: 2px;
+    margin:8px;
+  }
+  .rfx-card{
+    box-shadow:0 4px 10px 0 rgba(0,0,0,0.2),0 4px 20px 0 rgba(0,0,0,0.19);
+    padding-bottom: 16px; 
+    margin-top: 16px;
+  }
+  .parent {
+    display: flex;
+    align-items: center;
+  }
+  .rfx-bar{
+      display:flex;
+      align-items: center;
+      height: 38px;
+      width: 100%;
+      padding-left: 8px;
+  }
+  .rfx-bar-item{
+      margin: 0px 0px 0px 8px;
+  }
+  .rfx-input{
+    padding:8px;display:block;border:1px solid #ccc;width:100%;
+    color:#000;background-color:#f1f1f1
+  }
+  .rfx-footer {
+    position: fixed; /* Set the navbar to fixed position */
+    bottom: 0; /* Position the navbar at the bottom of the page */
+    width: 100%; /* Full width */
+    height: 36px;
+  }
+  .rfx-header {
+    position: fixed; /* Set the navbar to fixed position */
+    top: 0; /* Position the navbar at the top of the page */
+    width: 100%; /* Full width */
+    height: 36px;
+  }
+
+

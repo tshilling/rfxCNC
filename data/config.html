@@ -1,0 +1,59 @@
+<html>
+<head>
+    <title>RFX SETUP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="custom.css">
+</head>
+<body>
+
+    <div class="top splash">
+        <h2 class="header">RFX</h2>
+        <div class="content">
+            <h3 id="status" class="center">STATUS</h3>
+            <p id="SSID" style="margin:0">SSID: %SSID%</p>
+            <p style="margin:0">MODE: %MODE%</p>
+            <p style="margin:0">IP:   %IP%</p>
+            <p>
+            <hr style="height:2px;border-width:0;color:gray;background-color:gray;padding: 0;margin: 0;">
+            <form>
+                <h3 class="center">CONNECT TO</h3>  
+                <label>SSID</label>
+                <input id="ssid" type="text" class="inputs" name="ssid" placeholder="SSID"></p>
+                <label>PASSWORD</label>
+                <input id="password" type="password" class="inputs" name="password" placeholder="PASSWORD"></p>
+                <button id="submit" type="button" class="rfx-button" onclick="submitNetworkInfo()">Assign</button>
+                <p>
+            </form>
+        </div>
+        <h5 class="header">&copy; 2020 REPLICANTFX.COM</h5>
+    </div>
+</body>
+<script>
+    function submitNetworkInfo()
+    {
+      console.log("button was clicked!");
+      var ssid = document.getElementById("ssid").value;
+      var password = document.getElementById("password").value;
+      var data = {ssid:ssid, password:password};
+    
+      var xhr = new XMLHttpRequest();
+      var url = "/settings";
+      
+      xhr.onreadystatechange = function() {
+        if (this.readyState == 4) {
+            console.log("Status: "+this.status);
+            alert("Setting change saved To device");
+          if(xhr.responseText != null){
+            console.log(xhr.responseText);
+          }
+        }
+        //location.reload();
+      };
+      document.getElementById("SSID").innerText = "SSID: "+ssid;
+      document.getElementById("SSID").style.color = "green";
+      document.getElementById("status").innerText = "STATUS - CHANGED TO";
+      xhr.open("POST", url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify(data));
+    };
+</script>

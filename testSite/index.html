@@ -1,0 +1,484 @@
+<!-- for custom fonts use: https://icomoon.io/app/#/select/font, then copy style.css and fonts folder into main directory--> 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>RFX CONTROL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="w3.css">
+    <link rel="stylesheet" type="text/css" href="rfx.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="index.js"></script>
+    <script type="module" src="app.js"></script>
+</head>
+<body style="height: 100%;">
+  <header id="header_toolbar" class="rfx-header rfx-bar w3-metro-darken">
+    <div class="w3-display-container" style="width: 100%;">
+      <div class = "w3-display-left">
+        <div href="#" class="w3-button w3-text-blue-gray" onclick="openTab('Dashboard')"><b>RFX</b></div>
+      </div>
+      <div class = "w3-display-middle">
+      
+      </div>
+      <div class = "w3-display-right">
+          <a id="nav_engine" href="#" class="w3-button" onclick="openTab('Engine')"><span class="icon-cogs"></span></a>
+          <a id="nav_server" href="#" class="w3-button" onclick="openTab('Server')"><span class="icon-database"></span></a>
+      </div>
+    </div>
+  </header>
+  <div id="main_view" style="margin-top: 36px; margin-bottom: 52px; width:100%">
+    <!--####################### DASHBOARD ##################### -->     
+    <div id="Dashboard" class="tab">
+      <div class ="w3-row-padding">
+        <div class = "w3-third">
+          <div class="rfx-card">
+            <div class="rfx-bar w3-metro-darken">
+              <b class=" rfx-bar-item">Machine State</b>
+            </div>
+            <div style="padding-top:8px">
+              <rfx-input type="text" placeholder="placeholder" style="">Test</rfx-input>
+              <rfx-input type="select" placeholder="placeholder 123">
+                <option value="mm">mm</option> 
+                <option value="cm">cm</option>
+                <option value="m">m</option>
+                <option value="in">in</option>
+                <option value="ft">ft</option>
+              </rfx-input>
+              <rfx-input type="float" placeholder="placeholder 123">Float</rfx-input>
+              <rfx-input type="checkbox" value="true">A Check Box</rfx-input>
+              <rfx-input type="integer" units="(usec/sec)">A long integer label</rfx-input>
+            </div>
+          </div>
+        </div>
+        <div class = "w3-third">
+          <div class="rfx-card">
+            <div id="status-bits" style="display: inline-flexbox; width:100%">
+              <div id="status0" class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+              <div class="led"></div>
+
+            </div>
+          </div>
+        </div>
+        <div class = "w3-third">
+          <div class="rfx-card">
+            3
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!--####################################################### -->   
+    <!--####################### ENGINE ####################### -->  
+    <div id="Engine" class="tab" style="display:none; max-width: 1050px; margin: auto">
+      <div class ="" style="width: 100%; padding:16px; margin: auto; min-width: 548px;">
+        <div class="w3-card">
+          <div class="rfx-bar w3-metro-darken" >
+            <b class="rfx-bar-item">Engine Config</b>              
+            <a id="engine_setting_save_icon" href="#" class="rfx-bar-item w3-button w3-border-right w3-border-left" onclick="submitEngineInfo()"><span class="icon-floppy-disk"></span></a>
+            <div id="engine_setting_msg" class="rfx-bar-item"></div>
+          </div>
+          <div id="engineConfigContainer" class ="" style=" display:flex; justify-content: center; flex-wrap: wrap; margin: auto; width:100%; padding:8px">
+            <div class = "" style="width: 500px; padding: 8px;">
+              <div class="w3-card">
+                <div class="rfx-bar  w3-metro-darken">
+                  <b>General</b>
+                </div>
+                <div class="w3-container" style="padding: 8px; padding-bottom: 16px;">
+                  <rfx-input type="text" placeholder="Machine Name">Name</rfx-input>
+                  <rfx-input type="select">Units
+                    <option value="mm">mm</option> 
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                    <option value="in">in</option>
+                    <option value="ft">ft</option>
+                  </rfx-input>
+                  <rfx-input type="integer">Axis Count</rfx-input>
+                  
+                  <table style="width: 100%;">
+                    <tr>
+                      <td WIDTH = "40%"><b>Name</b></td>
+                      <td><input id="EC_Name" class="w3-border rfx-input" onchange='devalidateEngineConfig(this)' type="text" placeholder="Machine Name"></td>
+                    </tr>
+                    <tr>
+                      <td><b>Units</b></td>
+                      <td>
+                        <select id ="EC_Units" class="w3-select w3-border  rfx-input" onchange='devalidateEngineConfig(this)' name="option">
+                        <option value="" disabled selected>Units</option>
+                        <option value="mm">mm</option> 
+                        <option value="cm">cm</option>
+                        <option value="m">m</option>
+                        <option value="in">in</option>
+                        <option value="ft">ft</option>
+                        </select>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Axis Count</b></td>
+                      <td><input id="EC_Axis"  class="w3-input w3-border  rfx-input" onchange='devalidateEngineConfig(this)'  type="number" name="quantity" min="1" max="9" step="1" value="3"></td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+              <!--##########-->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!--####################### SERVER ##################### --> 
+    <div id="Server" class="tab" style="display:none; max-width: 1000px; margin: auto;">
+      <div class ="w3-row-padding">
+          <div class="rfx-card">
+            <div class="rfx-bar w3-metro-darken">
+              <div class="rfx-bar-item"><b>Server Status</b></div>
+              <div id="server_LED" class="led "></div>
+            </div>
+            <div class ="w3-row-padding">
+              <div class = "w3-half" style="padding-top: 16px;">
+                <div class="w3-card">
+                  <div class="rfx-bar w3-metro-darken">
+                    <b class="rfx-bar-item">NETWORK</b>
+                  </div>
+                  <table class="w3-table w3-bordered">
+                    <tr>
+                      <td style="text-align: left;"><b>IP:</b></td>
+                      <td id="server_ip" style="text-align: left;">NULL</td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: left;"><b>SSID:</b></td>
+                      <td id="server_ssid" style="text-align: left;">NULL</td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: left;"><b>MODE:</b></td>
+                      <td id="server_mode" style="text-align: left;">NULL</td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: left;"><b>PING (msec):</b></td>
+                      <td id="server_ping" style="text-align: left;">NULL</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+              <div class = "w3-half" style="padding-top: 16px;">
+                <div class="w3-card">
+                  <div class="rfx-bar w3-metro-darken">
+                    <b class="rfx-bar-item">PROCESSOR</b>
+                  </div>
+                  <table class="w3-table w3-bordered ">
+                    <tr>
+                      <td style="text-align: left;"><b>CPU Freq (Mhz):</b></td>
+                      <td id="server_freq" style="text-align: left;">NULL</td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: left;"><b>FREE RAM (kb):</b></td>
+                      <td id="server_heap" style="text-align: left;">NULL</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+      
+            </div>
+          </div>
+          <div class="rfx-card">
+            <div class="rfx-bar w3-metro-darken">
+              <b class="rfx-bar-item">WiFi</b>
+              <a id="server_setting_save_icon" href="#" class="rfx-bar-item w3-button w3-border-right w3-border-left" onclick="submitNetworkInfo()"><span class="icon-floppy-disk"></span></a>
+              <div id="server_setting_msg" class="rfx-bar-item"></div>
+            </div>
+            <div class = "w3-container w3-padding-16">
+              <label class="w3-text-black"><b>SSID</b></label>
+              <input id="ssid" class="w3-input w3-border w3-light-grey" type="text" placeholder="Network Name" onchange="devalidateServerSettings()">
+              <label class="w3-text-black"><b>Password</b></label>
+              <input id="password" class="w3-input w3-border w3-light-grey" type="password" placeholder="Password" onchange="devalidateServerSettings()">
+            </div>
+          </div>
+      </div>
+      
+    </div>
+    <!--####################################################### -->  
+
+  </div>
+  <footer id="footer_toolbar" class = "rfx-footer rfx-bar w3-metro-darken w3-metro-darken">
+    <div class="w3-display-container" style="width: 100%;">
+      <div class = "w3-display-left">
+          </div>
+      <div class = "w3-display-middle">
+        &copy ReplicantFX 2020
+      </div>
+      <div class = "w3-display-right">
+      </div>
+    </div>
+  </footer>
+</body>
+
+<template id="axisTemplate">
+  <div class = "" style="width: 500px; padding: 8px;">
+    <div class="w3-card">
+      <div class="rfx-bar  w3-metro-darken">
+        <b id="axisLabel">Axis</b>
+      </div>
+      <div>
+        <table WIDTH="100%" class="w3-table w3-bordered width:100%">
+          <tr>
+            <td style="width: 50px">
+              <b>ID</b>
+            </td>
+            <td style="width: 100px; min-width: 100px;">
+              <select id ="axisId" class=" rfx-input" onchange='devalidateEngineConfig(this)' name="option" style="width: 100%;">
+                <option value="" disabled selected>ID</option>
+                <option value="X">X</option>
+                <option value="Y">Y</option>
+                <option value="Z">Z</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="U">U</option>
+                <option value="V">V</option>
+                <option value="W">W</option>
+                <option value="E">E</option>
+              </select>
+            </td>
+            <td style="width:50px;padding-left: 16px;">
+              <b>Follow</b>
+            </td>
+            <td  style="width: 100px; min-width: 100px;">
+              <select id ="axisFollow" class=" rfx-input" onchange='devalidateEngineConfig(this)'  name="option" style="width: 100%;">
+                <option value="" disabled selected></option>
+                <option value="X">X</option>
+                <option value="Y">Y</option>
+                <option value="Z">Z</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="U">U</option>
+                <option value="V">V</option>
+                <option value="W">W</option>
+                <option value="E">E</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Rotary</b>
+            </td>
+            <td >
+              <input class ="w3-check rfx-input" onchange='devalidateEngineConfig(this.parentElement)'  id="axisRotary" type="checkbox" value="false" style="width: 16px;">
+            </td>
+            <td>
+              <b style="padding-left: 8px;">Discrete</b>
+            </td>
+            <td>
+              <input class ="w3-check rfx-input" onchange='devalidateEngineConfig(this.parentElement)'  id="axisDiscrete" type="checkbox" value="false" style="width: 16px;">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Min</b><a class="w3-small" style="padding-left: 8px;">(units)</a>
+            </td>
+            <td>
+              <input id="axisMin" class="rfx-input" onchange='devalidateEngineConfig(this)' type="number" placeholder="0" style="width: 100%;">
+            </td>
+            <td style="padding-left: 16px;">
+              <b>Max</b><a class="w3-small" style="padding-left: 8px;">(units)</a>
+            </td>
+            <td>
+              <input id="axisMax" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Home</b><a class="w3-small" style="padding-left: 8px;">(units)</a>
+            </td>
+            <td>
+              <input id="axisHome" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;">
+            </td>
+            <td style="padding-left: 16px;">
+              <b>Negative</b>
+            </td>
+            <td>
+              <input class ="w3-check rfx-input" onchange='devalidateEngineConfig(this)'  id="axisHomeNegative" type="checkbox" value="false" style="width: 16px;">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Step Pin</b>
+            </td>
+            <td>
+              <input id="axisStepPin" class=" rfx-input" onchange='devalidateEngineConfig(this)'  type="number" placeholder="0" style="width: 100%;" min="0" step="1">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Dir Pin</b>
+            </td>
+            <td>
+              <input id="axisDirPin" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;" min="0" step="1">
+            </td>
+            <td style="padding-left: 16px;">
+              <b>Invert</b>
+            </td>
+            <td>
+              <input class ="w3-check rfx-input" onchange='devalidateEngineConfig(this)'  id="axisDirInvert" type="checkbox" value="false" style="width: 16px;">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <b>Steps/ Unit</b>
+            </td>
+            <td>
+              <input id="axisStepsPerUnit" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;" min="1" step="1">
+            </td>
+          </tr> 
+          <tr>
+            <td>
+              <b>Max Feed</b><a class="w3-small" style="padding-left: 8px;">(u/sec)</a>
+            </td>
+            <td>
+              <input id="axisMaxFeed" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;" min="0">
+            </td>
+            <td  style="padding-left: 16px;">
+              <b>Accel</b><a class="w3-small" style="padding-left: 8px;">(u/sec^2)</a>
+            </td>
+            <td>
+              <input id="axisAcceleration" class=" rfx-input" onchange='devalidateEngineConfig(this)'   type="number" placeholder="0" style="width: 100%;" min="0">
+            </td>
+          </tr> 
+        </table>
+
+      </div>
+    </div>
+  </div>
+</template>
+<template id="musicPlayerTemplate">
+  <style>
+    .outer {
+      width: 350px;
+      font-family: Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    .info {
+      background: #545454; 
+      background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#545454), color-stop(100%,#212121)); 
+      background: -webkit-linear-gradient(top,  #545454 0%,#212121 100%);
+      background: linear-gradient(to bottom,  #545454 0%,#212121 100%);
+      padding: 1.5em;
+      text-align: center;
+    }
+
+    .song {
+      color: #FFFFFF;
+      font-size: 1.5em;
+    }
+
+    .artist {
+      margin-top: 0.5em;
+      color: #BABABA;
+      font-size: 0.9em;
+    }
+
+    .controls {
+      padding: 1em;
+      text-align: center;
+      background: #f7f7f7;
+      background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#f7f7f7), color-stop(100%,#e6e6e6));
+      background: -webkit-linear-gradient(top,  #f7f7f7 0%,#e6e6e6 100%);
+      background: linear-gradient(to bottom,  #f7f7f7 0%,#e6e6e6 100%);
+    }
+
+    button {
+      background: #f9f9f9;
+      background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#f9f9f9), color-stop(100%,#d9d9d9)); 
+      background: -webkit-linear-gradient(top,  #f9f9f9 0%,#d9d9d9 100%);
+      background: linear-gradient(to bottom,  #f9f9f9 0%,#d9d9d9 100%); 
+      border: 1px solid #BABABA;
+      border-radius: 3px;
+      font-size: 0.8em;
+      padding: 0.3em 0.6em;
+      cursor: pointer;
+    }
+  </style>
+
+  <div class="outer">
+    <div class="info">
+      <div class="song">
+        <content select=".song"></content>
+      </div>
+      <div class="artist">
+        <content select=".artist"></content>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="play">Play</button>
+      <button class="pause">Pause</button>
+    </div>
+  </div>
+</template>
+
+
+<script>
+  function update_status(){
+    var xhr = new XMLHttpRequest();
+    xhr.onload = () => {
+      let response = JSON.parse(xhr.responseText)
+      let status = response.status;
+      let nodes = document.querySelectorAll("#status-bits > .led");
+      for(var i=0; i<nodes.length; i++) {
+        if(status[i]=='0')
+          nodes[i].style.background = "rgb(100,100,100)";
+        else
+          nodes[i].style.background = "rgb(100,255,100)";
+      }
+    };
+    xhr.onerror =() =>{
+      //update_server_status("warning");
+      //document.getElementById("server_ping").innerText = "error";
+    }
+    xhr.timeout=1000;
+    xhr.ontimeout=()=>{
+      //update_server_status("warning");
+      //document.getElementById("server_ping").innerText = "timeout";
+    }
+    xhr.open("GET", "http://192.168.4.62/keepalive", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send();
+
+
+
+
+
+
+  }
+  setInterval(update_status, 500);
+</script>

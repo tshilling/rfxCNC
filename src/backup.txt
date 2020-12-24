@@ -1,0 +1,255 @@
+#include "Arduino.h"
+#include "CNCrawStepControl.h"
+#include "CNCEngineConfig.h"
+#include <Console.h>
+#include <Queue.h>
+
+namespace CNCEngine{
+    namespace rawStepControl{      
+        uint16_t minuSecBetweenSteps = 16;
+
+        struct engineParameterStruct{
+            uint8_t     pulseOnDuration;        // usec (1-255)
+            uint8_t     pulseOffDuration;       // usec (1-255)
+            uint8_t     setupTimeBeforeStep;    // usec (1-255)
+        }engineParameter;
+
+        struct engineStateStruct{
+            int32_t position[axisCount];
+            float feedRate; 
+            bool movementActive;
+            bool feedhold;
+        };
+        volatile engineStateStruct engineCurrentState;
+
+        struct lineParameterStruct{
+            int32_t     deltaSteps  = 0;
+            uint32_t    doubleDelta = 0;
+            int64_t     D           = 0;
+        };
+        struct stateStruct{
+            std::vector<lineParameterStruct>    parameter;
+            uint8_t     dominateAxis;
+        };
+        struct engineMotionStruct{
+            int32_t     deltaSteps[axisCount];
+            uint32_t    doubleDelta[axisCount];
+            int64_t     D[axisCount];
+            uint8_t     dominateAxis;
+            uint16_t    uSecBetweenSteps;
+            uint8_t     smoothing;
+            uint8_t     smoothingCount[axisCount];
+        };
+        struct engineMotionQueueStruct{
+            int32_t     deltaSteps[axisCount];
+        };
+        ArduinoQueue<engineMotionQueueStruct> engineQueue(queLength);
+
+        volatile engineMotionStruct engineCurrentMotion;
+        void init(){
+            console::logln("");
+            console::bar("Raw Step Control Init",64);
+            console::tabIndex++;
+            initEngine();
+            initTimers();
+            console::tabIndex--;
+            console::bar("",64);
+        }    
+        portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+        void handlePulseOffEvent(){
+
+        }
+        void incrementStep(uint8_t i)
+        {
+            engineCurrentMotion.smoothingCount[i]++;
+            if(engineCurrentMotion.smoothingCount[i] >= powersOfTwo[engineCurrentMotion.smoothing])
+            {
+                engineCurrentMotion.smoothingCount[i] = 0;
+                if(engineCurrentMotion.deltaSteps[i] > 0)
+                {
+                    engineCurrentState.position[i]++;
+                    engineCurrentMotion.deltaSteps[i]-=1;
+                }
+                else
+                {
+                    engineCurrentState.position[i]--;
+                    engineCurrentMotion.deltaSteps[i]+=1;
+                }
+            }
+        }
+        void handlePulseOnEvent(){
+            if(engineCurrentState.feedhold == true)
+                return;
+
+            // If the dominate axis still has steps to perform...
+            if(engineCurrentMotion.deltaSteps[engineCurrentMotion.dominateAxis] != 0 ) 
+            {
+                for(int i = 0; i < axisCount;i++)
+                {
+                    if(i==engineCurrentMotion.dominateAxis)
+                        incrementStep(i);
+                    else
+                    { 
+                        // Normal algorithm has an if statement.  Use While statement to handle non-continuous axis (ie. axis able to skip integer values like spindle speeds and feedrates which are included as axis for syncronization)
+                        while(engineCurrentMotion.D[i]>0)
+                        {
+                            incrementStep(i);
+                            engineCurrentMotion.D[i] -= engineCurrentMotion.doubleDelta[engineCurrentMotion.dominateAxis];
+                        }
+                        engineCurrentMotion.D[i] += engineCurrentMotion.doubleDelta[i];
+                    }
+                }
+            }
+            else
+            {
+                engineCurrentState.movementActive = popMotion();
+                engineCurrentState.feedhold = true;
+            }
+        }
+        bool pushMotion(int32_t deltaSteps[axisCount]){
+            engineMotionQueueStruct nextMotion;
+            
+            for(int i = 0; i < continuousAxisCount;i++){
+                if(deltaSteps[i] > maxContinuousAxisValue)
+                {
+
+                    return false;
+                }
+                nextMotion.deltaSteps[i] = deltaSteps[i];
+            }
+            for(int i = continuousAxisCount;i>axisCount;i++){
+                if(deltaSteps[i] > maxNonContinuousAxisValue)
+                    return false;
+                nextMotion.deltaSteps[i] = deltaSteps[i];
+            }
+            
+            return engineQueue.enqueue(nextMotion);
+        }
+        
+        bool showPop = false;
+        bool popMotion(){
+            if(engineQueue.isEmpty())
+                return false;
+                
+            engineMotionQueueStruct motionIn = engineQueue.dequeue();
+            uint32_t maxValue = 0;  // Must be double data type size of max delta steps.
+            
+            for(int i = 0; i < Config::axis_count+1;i++){
+                engineCurrentMotion.deltaSteps[i] = motionIn.deltaSteps[i];
+            }
+
+            for(int i = 0; i < Config::axis_count;i++){
+                if(abs(motionIn.deltaSteps[i])>maxValue)
+                {
+                    maxValue = abs(engineCurrentMotion.deltaSteps[i]);
+                    engineCurrentMotion.dominateAxis = i;
+                }
+            }
+            engineCurrentMotion.uSecBetweenSteps  = 1000;
+            engineCurrentMotion.smoothing = 0;
+            /*
+            for(int i = 0;i<8;i++)
+            {
+                maxValue = maxValue << i;
+                // maxValue is uint32.  Allowable values for deltastep are int32.  uint32 can be twice the value of an int32 because of the removal of the negative portion.
+                // if maxValue is greater than the max value allowed in datatype int32, break.  Last i was already applied to necessary variables.  
+
+                if(maxValue >= std::numeric_limits<int32_t>::max())
+                    break;
+                engineCurrentMotion.uSecBetweenSteps  = 1000 >> i;
+                engineCurrentMotion.smoothing = i;
+                // The first pass through the for loop, i = 0, so no shift appied.
+                // Subsequent passes will half the step uSecBetweenSteps
+                // Ensure another pass in the loop will not drop uSecBetweenSteps
+                // below the floor of allowable values. 
+                if(engineCurrentMotion.uSecBetweenSteps<=(minuSecBetweenSteps<<1))
+                    break;
+            }
+            */
+            for(int i = 0; i < Config::axis_count+1;i++){
+                engineCurrentMotion.smoothingCount[i]=0;
+                engineCurrentMotion.doubleDelta[i] = 2*(((uint32_t) abs(engineCurrentMotion.deltaSteps[i]))<<engineCurrentMotion.smoothing);    // Always positive, only ever 2x base value, uint32 works with int32 step value
+                engineCurrentMotion.D[i] = engineCurrentMotion.doubleDelta[i] - (((uint32_t) abs(engineCurrentMotion.deltaSteps[engineCurrentMotion.dominateAxis]))<<engineCurrentMotion.smoothing);
+            }
+            showPop = true;
+            return true;
+        }
+        void logPosition(){
+            console::log("Pos:",console::routine);
+            for(int i =0;i<Config::axis_count;i++){
+                console::log("\t",console::routine);
+                console::log(String(engineCurrentState.position[i]),console::routine);
+            }
+            console::logln("",console::routine);
+        }
+        void setFeedHold(bool value){
+            engineCurrentState.feedhold = value;
+        }
+        void setShowPop(bool value){
+            showPop = value;
+        }
+        bool getShowPop(){
+            return showPop;
+        }
+        bool getMovementActive(){
+            return engineCurrentState.movementActive;
+        }
+        //######### Engine Setup #########
+        void initEngine(){
+            //####### Load configuration state #######
+            engineParameter.pulseOffDuration =      engineDefaultPulseOffDuration;
+            engineParameter.pulseOnDuration =       engineDefaultPulseOnDuration;
+            engineParameter.setupTimeBeforeStep =   engineDefaultSetupTimeBeforeStep;
+
+            uint16_t calcMinTime = engineDefaultPulseOnDuration + engineDefaultPulseOffDuration + engineDefaultSetupTimeBeforeStep;
+            if(minuSecBetweenSteps < calcMinTime)
+                minuSecBetweenSteps = calcMinTime;
+            //####### Initialize Engine State ####### 
+            for(int i = 0; i < Config::axis_count+1;i++){
+                engineCurrentMotion.deltaSteps[i] = 0;
+                engineCurrentMotion.D[i] = 0;
+                engineCurrentMotion.doubleDelta[i] = 0;
+                engineCurrentState.position[i] = 0;
+            }
+            engineCurrentMotion.dominateAxis = 0;
+            engineCurrentState.feedhold = true;
+        }
+        //######### Timers Setup #########
+        hw_timer_t * pulseOnTimer = NULL;
+        hw_timer_t * pulseOffTimer = NULL;
+        volatile bool eventBlock = false; 
+        void IRAM_ATTR pulseOnEvent() {
+            if(eventBlock)
+                return;
+            eventBlock = true;
+
+            if(engineCurrentMotion.uSecBetweenSteps >= minuSecBetweenSteps)
+                timerAlarmWrite(pulseOnTimer, engineCurrentMotion.uSecBetweenSteps, true);
+            else
+                timerAlarmWrite(pulseOnTimer, minuSecBetweenSteps, true);
+
+            handlePulseOnEvent();
+
+            timerAlarmWrite(pulseOffTimer, engineDefaultPulseOnDuration, false);
+            timerWrite(pulseOffTimer,0);
+            timerAlarmEnable(pulseOffTimer);
+
+            eventBlock = false;
+        }
+        void IRAM_ATTR pulseOffEvent() {
+            handlePulseOffEvent();
+        }
+        void initTimers(){
+            // With a prescale of 80 (divider in timerBegin), each tick of the interrupt is 1 usec
+            pulseOnTimer = timerBegin(0, 80, true);
+            timerAttachInterrupt(pulseOnTimer, &pulseOnEvent, true);
+            timerAlarmWrite(pulseOnTimer, 1000, true);
+            timerWrite(pulseOnTimer,0);
+            timerAlarmEnable(pulseOnTimer);
+            
+            // Second timer (Timer 1) is initialized, but not started.  It is started after steps are initiated in Timer0 interrupt
+            pulseOffTimer = timerBegin(1, 80, true);
+            timerAttachInterrupt(pulseOffTimer, &pulseOffEvent, true);
+        }
+    }
+}
