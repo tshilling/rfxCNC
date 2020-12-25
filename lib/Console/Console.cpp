@@ -5,7 +5,7 @@ namespace console{
     msgType logLevel = msgType::routine;
     bool newline = true;
     int lineLength = 0;
-    bool timestamp = true;
+    bool timestamp = false;
     void init(Stream *_stream){
         stream = _stream;
         tabIndex = 0;
@@ -14,6 +14,9 @@ namespace console{
         if(stream==nullptr)
             return;
         lineLength +=stream->print(msg);
+    }
+    void write(int i){
+        stream->write(i);
     }
     void println(String msg){
         if(stream==nullptr)
@@ -46,6 +49,10 @@ namespace console{
         }
         println("");
         newline = true;
+    }
+    void bar(char length)
+    {
+        bar("",length);
     }
     void log(String msg){
         log(msg, routine);

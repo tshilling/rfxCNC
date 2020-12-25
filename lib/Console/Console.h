@@ -16,7 +16,9 @@ namespace console{
         error = 4,
     };
     extern msgType logLevel;
+    void write(int i);
     void bar(String msg, char length);    
+    void bar(char length);  
     void log(String msg);
     void logln(String msg);
     void logln();

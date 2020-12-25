@@ -25,228 +25,127 @@
 */
 
 namespace CNCServer{
-    rfxQueue<String> buffer_in;
-    Stream* stream;     // Parent type for Serial Streams (And all streams)
+    AsyncWebServer server(80);
     struct configStruct{
         String SSID="";
         String Password="";
-    };
-
-    configStruct config;
-    
-    bool tryToConnectToStation(){
-        // Try to connect to exisiting network
-        stream->print("Connecting to ");
-        stream->print(config.SSID);
-
-        WiFi.begin(config.SSID.c_str(),config.Password.c_str());
-
-        int i = 0;
-        while (WiFi.status() != WL_CONNECTED) 
-        {
-            delay(500);
-            stream->print(".");
-            i = i + 1;
-            if(i > 20)  // Wait for 10sec
-            {
-                stream->println();
-                stream->print("ERROR: could not connect to ");
-                stream->println(config.SSID);
-                return false;
-            }
-        }
-        stream->println();
-        stream->print("SUCCESS: WiFi connected, IP: ");
-        stream->println(WiFi.localIP());
-        return true;
-    }
-    bool tryToEstablishAP(){
-        stream->print("Establishing Access Point as: ");
-        stream->println(apSsid);
-        if(WiFi.softAP(apSsid.c_str(), APPASSWORD)){
-            IPAddress myIP = WiFi.softAPIP();
-                   stream->println("Done");
-                    stream->println("AP Mode Wifi");
-                    stream->print("  SSId:\t\t");
-                    stream->println(apSsid);
-                    stream->print("  PW:\t\t");
-                    stream->println(APPASSWORD);
-                    stream->print("  Local IP:\t");
-                    stream->println(myIP);
-                    config.SSID = apSsid;
-            return true;
-        }
-        else
-        {
-            stream->println("ERROR: Could not establish Access Point");
-        }
-        return false;
-    }
-    bool initWifi(){
-        // If there is anything set in the config file for SSID
-        if(config.SSID.length()!=0)
-            if(tryToConnectToStation()){
-                return true;
-            }
-        if(tryToEstablishAP()){
-            return true;
-        }
-        return false;
-    }
-     
-    // Stores LED state
-    String ledState;
-    String processor(const String& var){
-        if(var == "SSID")
-        {
-            return config.SSID;
-        }
-        if(var == "MODE")
-        {
-            WiFiMode_t M = WiFi.getMode();
-            if(M==WIFI_AP)
-                return F("WiFi Host");
-            if(M==WIFI_STA)
-                return F("WiFi Client");
-            if(M==WIFI_AP_STA)
-                return F("WiFi Host & Client");
-        }
-        if(var == "IP")
-            return WiFi.localIP().toString();
-        return String();
-    }
-
-
-    void printFile(const char* params){
-        stream->println();
-        stream->print("===== ");
-        stream->print(params);
-        stream->println(" =====");
-      if(params==nullptr)
-        return;
-        File f = SPIFFS.open(params,"r");
-        while(f.available()){
-            stream->write(f.read());
-        }
-          stream->println();
-          f.close();
-        stream->print("======");
-        for(int i = 0;i<strlen(params);i++){
-            stream->print("=");
-        }
-        stream->println("======");
-    }
-
-    bool readConfigFile(){
-        stream->println("Reading Config File");
-        File configFile = SPIFFS.open("/public/config.json", "r");
+    } config;
+    bool read_config_file(){
+        console::logln("Reading Config File");
+        File configFile = SPIFFS.open("/public/serverConfig.json", "r");
         if (configFile)
         {
             StaticJsonDocument<512> doc;
             DeserializationError error = deserializeJson(doc, configFile);
             if(!error)
             {
-                const char* tSSID = doc["ssid"];
-                const char* tPW = doc["password"];
-                if(tSSID!=NULL)
-                    config.SSID = String(tSSID);
-                if(tPW!=NULL)
-                    config.Password = String(tPW);
+                if(!doc["ssid"].isNull())
+                    config.SSID = String((const char*) doc["ssid"]);
+                if(!doc["password"].isNull())
+                    config.Password = String((const char*) doc["password"]);
                 configFile.close();
-                printFile("/config.json");
+                CNCFileSystem::show_file("/public/serverConfig.json");
                 return true;
             }
+            console::logln("Config error: "+String(error.c_str()));
         }
         else{
-            stream->println("\tERROR: Config File Not Found");
+            console::logln("Config File Not Found", console::error);
         }
         configFile.close();
         return false;        
     }
-    bool writeConfigFile(){
-        stream->println("Writing Config File");
-        File configFile = SPIFFS.open("/public/config.json", "w");
+    bool write_config_file(){
+        console::logln("Writing server config file");
+        File configFile = SPIFFS.open("/public/server_config.json", "w");
         if (configFile)
         {
             StaticJsonDocument<512> doc;
-            const char* tSSID = config.SSID.c_str();
-            const char* tPW = config.Password.c_str();
-            doc["ssid"] = tSSID;
-            doc["password"] = tPW;
+            doc["ssid"] = config.SSID;
+            doc["password"] = config.Password;
             serializeJson(doc, configFile);
             configFile.close();
-            printFile("/config.json");
+            CNCFileSystem::show_file("/public/server_config.json");
             return true;
         }
         else
         {
-            stream->println("\tERROR: Config File Not Found");
-        }
-        
+            console::logln("Server config file not found", console::error);
+        } 
         configFile.close();
         return false;  
     }
-    
-    AsyncWebServer server(80);
-    //WebServer server(80);
-    //This functions returns a String of content type
-    String getContentType(String filename) {
-        if (filename.endsWith(".htm")) { //check if the string filename ends with ".htm"
-            return "text/html";
-        } else if (filename.endsWith(".html")) {
-            return "text/html";
-        } else if (filename.endsWith(".css")) {
-            return "text/css";
-        } else if (filename.endsWith(".js")) {
-            return "application/javascript";
-        } else if (filename.endsWith(".png")) {
-            return "image/png";
-        } else if (filename.endsWith(".gif")) {
-            return "image/gif";
-        } else if (filename.endsWith(".jpg")) {
-            return "image/jpeg";
-        } else if (filename.endsWith(".ico")) {
-            return "image/x-icon";
-        } else if (filename.endsWith(".xml")) {
-            return "text/xml";
-        } else if (filename.endsWith(".pdf")) {
-            return "application/x-pdf";
-        } else if (filename.endsWith(".zip")) {
-            return "application/x-zip";
-        } else if (filename.endsWith(".gz")) {
-            return "application/x-gzip";
-        }
-        return "text/plain";
-    }
-    int disable_count = 0;
-    
-    void initServer(){  
-            
-        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
 
-            console::logln("index.html");
+    void add_non_standard_endpoints(){
+        server.on("/engine/keepalive",HTTP_GET,[](AsyncWebServerRequest *request){
+            StaticJsonDocument<200> doc;
+            String binaryString = "";
+            char binary[33];
+            for(uint8_t i = 0; i < 32;i++){
+                if(bitRead(CNC_ENGINE::machine_state.status_bits,i)==0){
+                    binary[i] = '0';
+                    //binaryString+="0";
+                }
+                else{
+                    binary[i] = '1';
+                    //binaryString+="1";
+                }
+            }
+            
+            binary[32] = '\0';  // Null character for string termination
+
+            doc["status"] = String(binary);
+            doc["time"] = String(millis());
+            String output = "";
+            serializeJson(doc, output);
+            request->send(200, "application/json", output);
+        });
+        server.on("/engine/api", HTTP_GET, [](AsyncWebServerRequest *request){
+            int paramsNr = request->params();
+            Serial.println(paramsNr);
+            for(int i=0;i<paramsNr;i++){
+                AsyncWebParameter* p = request->getParam(i);
+                if(p->name() == "code"){
+                    CNC_ENGINE::command_class command = CNC_ENGINE::parse_gcode(p->value());
+                    CNC_ENGINE::operation_result_enum result = CNC_ENGINE::operation_controller.add_operation_to_queue(&command);
+                    if(result == CNC_ENGINE::success){
+                        CNC_ENGINE::machine_state.is_active = true;
+                        request->send(200, "text/plain", "ok");
+                        return;
+                    }
+                    else{
+                        request->send(200, "text/plain", String(CNC_ENGINE::operation_result_string[result]));
+                        return;
+                    }
+                }
+            }
+            request->send(200, "text/plain", "ok");
+        });
+    }
+    void add_standard_endpoints(){
+        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
             request->send(CNCFileSystem::fileSystem,"/index.html","text/html");
 
         }); 
         server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
-
-            console::logln("favicon.ico");
             request->send(CNCFileSystem::fileSystem,"/favicon.png","image/png");
 
         });  
+        //dealing with zipped file
+        /*
         server.on("/bootstrap.css", HTTP_GET, [](AsyncWebServerRequest *request){
             AsyncWebServerResponse *response = request->beginResponse(CNCFileSystem::fileSystem,"/public/bootstrap.min.css.gz","text/css", false);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
-        });   
+        });   */
         server.onNotFound([](AsyncWebServerRequest *request) {
             if (request->method() == HTTP_OPTIONS) {
-                request->send(200);
+                request->send(200); // Removing this breaks Cors support.... don't know why
             } else {
                 request->send(404);
             }
         });
-        server.on("/serverStatus", HTTP_GET,[](AsyncWebServerRequest *request){
+        server.on("/server/status", HTTP_GET,[](AsyncWebServerRequest *request){
             StaticJsonDocument<200> doc;
             doc["IP"] = WiFi.localIP().toString();
             doc["SSID"] = WiFi.SSID();
@@ -268,7 +167,7 @@ namespace CNCServer{
             serializeJson(doc, output);
             request->send(200, "application/json", output);
         });
-        server.on("/settings",HTTP_POST,[](AsyncWebServerRequest *request){
+        server.on("/server/settings",HTTP_POST,[](AsyncWebServerRequest *request){
             request->send(200, "text/plain", "ok");
         },NULL,[](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
             StaticJsonDocument<200> doc;
@@ -281,98 +180,107 @@ namespace CNCServer{
             console::logln("password: "+String(password));
             config.SSID = ssid;
             config.Password = password;
-            writeConfigFile();
-        });
-        server.on("/api", HTTP_GET, [](AsyncWebServerRequest *request){
-            int paramsNr = request->params();
-            Serial.println(paramsNr);
-            for(int i=0;i<paramsNr;i++){
-                AsyncWebParameter* p = request->getParam(i);
-                Serial.print("Param name: ");
-                Serial.println(p->name());
-                Serial.print("Param value: ");
-                Serial.println(p->value());
-                Serial.println("------");
-                if(p->name() == "code"){
-                    CNC_ENGINE::command_class command = CNC_ENGINE::parse_gcode(p->value());
-                    CNC_ENGINE::operation_result_enum result = CNC_ENGINE::operation_controller.add_operation_to_queue(&command);
-                    if(result == CNC_ENGINE::success){
-                        CNC_ENGINE::machine_state.is_active = true;
-                        request->send(200, "text/plain", "ok");
-                        return;
-                    }
-                    else{
-                        request->send(200, "text/plain", String(CNC_ENGINE::operation_result_string[result]));
-                        return;
-                    }
-                }
-            }
-            request->send(200, "text/plain", "ok");
-        });
-        server.on("/keepalive",HTTP_GET,[](AsyncWebServerRequest *request){
-            StaticJsonDocument<200> doc;
-            String binaryString = "";
-            char binary[32];
-            for(uint8_t i = 0; i < 32;i++){
-                if(bitRead(CNC_ENGINE::machine_state.status_bits,i)==0){
-                    binary[i] = '0';
-                    //binaryString+="0";
-                }
-                else{
-                    binary[i] = '1';
-                    //binaryString+="1";
-                }
-            }
-            doc["status"] = String(binary);
-            doc["time"] = String(millis());
-            String output = "";
-            serializeJson(doc, output);
-            request->send(200, "application/json", output);
+            write_config_file();
         });
         server.serveStatic("/",CNCFileSystem::fileSystem,"/public");
+    }
+    bool try_to_connect_to_station(){
+        // Try to connect to exisiting network
+        console::log("Connecting to: "+config.SSID);
+        WiFi.begin(config.SSID.c_str(),config.Password.c_str());
 
+        int i = 0;
+        while (WiFi.status() != WL_CONNECTED) 
+        {
+            delay(500);
+            console::log(".");
+            i = i + 1;
+            if(i > 20)  // Wait for 10sec
+            {
+                console::logln(" Could not connect.", console::error);
+                return false;
+            }
+        }
+        console::logln(" Success.");
+        console::logln("IP:\t"+WiFi.localIP().toString());
+        return true;
+    }
+    bool try_to_establish_access_point(){
+        console::log("Establishing Access Point as: "+apSsid+"... ");
+        if(WiFi.softAP(apSsid.c_str(), APPASSWORD)){
+            console::logln("Done, access point wifi mode establish:");
+            console::tabIndex++;
+            console::logln("SSId:\t\t"+apSsid);
+            console::logln("PW:\t\t"+String(APPASSWORD));
+            console::logln("Local IP:\t"+WiFi.softAPIP().toString());
+            console::tabIndex--;
+            config.SSID = apSsid;
+            return true;
+        }
+        else
+        {
+            console::logln("Failed");
+        }
+        return false;
+    }
+    bool init_wifi(){
+        // If there is anything set in the config file for SSID
+        if(config.SSID.length()!=0){
+            if(try_to_connect_to_station())
+                return true;
+        }
+        return try_to_establish_access_point();
+    }
+     
+    String processor(const String& var){
+        /*
+        if(var == "SSID")
+        {
+            return config.SSID;
+        }
+        if(var == "MODE")
+        {
+            wifi_mode_t M = WiFi.getMode();
+            if(M==WIFI_AP)
+                return F("WiFi Host");
+            if(M==WIFI_STA)
+                return F("WiFi Client");
+            if(M==WIFI_AP_STA)
+                return F("WiFi Host & Client");
+        }
+        if(var == "IP")
+            return WiFi.localIP().toString();
+        */
+        return String();
+    }
+
+    void init_server(){       
+ 
+        add_standard_endpoints();
+        add_non_standard_endpoints();
         DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
         DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
         server.begin();
     }
-    void initFileSystem(){
+    void init_file_system(){
         CNCFileSystem::init();
         delay(100);
-        readConfigFile();
+        read_config_file();
         delay(100);
     }
     
     //
-    void _serverLoop(void * parameter){
-        //vTaskEndScheduler();
-        //buffer_in.resize_queue(32);
-        initFileSystem();
-        initWifi();
-        initServer();
+    void server_loop(void * parameter){
+        init_file_system();
+        init_wifi();
+        init_server();
         for(;;) {
-            /*
-            if(!buffer_in.isEmpty()){
-                String* line = buffer_in.getHeadItemPtr();
-                if(line!=nullptr)
-                    if(xQueueSend(server_to_engine_queue, &line,portMAX_DELAY)==pdTRUE){
-                        buffer_in.dequeue();
-                    }
-            }
-            */
-            //server.handleClient();
             vTaskDelay(1);  // needed to keep watchdog timer happy
         }
     }
 
     TaskHandle_t taskHandle;
-    void init(Stream *_stream){  
-        stream = _stream;
-        if(stream!=nullptr)
-        {
-            Serial.begin(SERIALBAUD);
-            stream = &Serial;
-        }
-
+    void init(){  
         // Append chip ID to Defined apSsid
         // NOTE: As of writting, ESP32 does not have a chipID like the esp8266.  Instead we have to use the mac address
         uint8_t sta_mac[6];
@@ -380,7 +288,7 @@ namespace CNCServer{
         apSsid = String(APSSID)+String(sta_mac[0])+String(sta_mac[1])+String(sta_mac[2])+String(sta_mac[3])+String(sta_mac[4])+String(sta_mac[5]);
         
         xTaskCreatePinnedToCore(
-            _serverLoop, /* Function to implement the task */
+            server_loop, /* Function to implement the task */
             "Server", /* Name of the task */
             10000,  /* Stack size in words */
             NULL,  /* Task input parameter */

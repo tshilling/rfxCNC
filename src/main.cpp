@@ -38,13 +38,12 @@ void setup()
   initConsole();
   initCPU();
   CNCFileSystem::init();
-  //server_to_engine_buffer = xRingbufferCreate(server_to_engine_queue_size, RINGBUF_TYPE_NOSPLIT);
-  //server_to_engine_queue = xQueueCreate(10,sizeof(String*));
   disableCore0WDT();
-  disableCore1WDT();
-  CNCServer::init(&Serial);
+  //disableCore1WDT();
+  CNCServer::init();
   delay(1000);
   CNC_ENGINE::init();
+
 }
 // Loop runs on Core 1
 void loop()

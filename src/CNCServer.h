@@ -7,10 +7,9 @@
 #include "SPIFFS.h"
 
 namespace CNCServer{
-    extern Stream* stream;
     static String apSsid;
 
-    void init(Stream *_stream);
+    void init();
     void _serverLoop(void * parameter);
 };
 

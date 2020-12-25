@@ -33,6 +33,7 @@ namespace CNC_ENGINE{
     uint32_t old_status = 0;
     void _engineLoop(void * parameter){
         Config::init();
+
         init_machine_state();
         step_engine::init();
         console::logln("Axis Count: "+ String(Config::axis_count));

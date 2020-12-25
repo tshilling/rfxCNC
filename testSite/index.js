@@ -43,7 +43,7 @@ function getServerInfo(){
     update_server_status("warning");
     document.getElementById("server_ping").innerText = "timeout";
   }
-  xhr.open("GET", "http://192.168.4.62/serverStatus", true);
+  xhr.open("GET", "http://192.168.4.62/server/status", true);
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.send();
 }
@@ -76,7 +76,7 @@ function submitNetworkInfo()
       document.getElementById('server_setting_msg').innerText = "Server unreachable";
       document.getElementById('server_setting_msg').style.color = color_warning;
   }
-  xhr.open("POST", "http://192.168.4.62/settings", true);
+  xhr.open("POST", "http://192.168.4.62/server/settings", true);
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.send(JSON.stringify(data));
 };

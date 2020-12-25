@@ -17,7 +17,7 @@ namespace CNCFileSystem{
         ready = true;
         return true;
     }
-    bool showFile(String filename){
+    bool show_file(String filename){
         console::logln("");
         console::bar(filename,100);
         if(ready)
@@ -28,13 +28,12 @@ namespace CNCFileSystem{
             }
             else
             {
-            
                 while(f.available()){
-                console::stream->write(f.read());
+                    console::write(f.read());
                 }
                 f.close();
                 console::logln("");
-                console::bar("",100);
+                console::bar(100);
                 return true;
             }
         }

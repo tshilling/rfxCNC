@@ -11,6 +11,6 @@ namespace CNCFileSystem{
     extern FS fileSystem;
     extern bool ready;
     bool init();
-    bool showFile(String filename);
+    bool show_file(String filename);
 };
 #endif
