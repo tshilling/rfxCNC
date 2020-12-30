@@ -3,50 +3,36 @@
 #include "config.h"
 #include "console.h"
 #include "CNCEngine.h"
-#include "CNCServer.h"
-#include "esp32-hal-cpu.h"
+#include "server\RFX_Server.h"
 #include "CNCFileSystem.h"
-#include "queue.h"
-#include "RFXQueue.h"
+#include "esp32-hal-cpu.h"
 
-#include "operations/bresenham.h"
-
-#include "step_engine/step_engine.h"
-
-void initConsole(){
+void init_console(){
   Serial.begin(SERIALBAUD);
   console::init(&Serial);
 }
-void initCPU(){
-  uint32_t freq = 240;
-  setCpuFrequencyMhz(freq); //Set CPU clock to 80MHz fo example
-  console::log("CPU Set To: ",console::routine);
-  console::log(String(freq),console::routine);
-  console::log("\t\tRead as: ",console::routine);
-  console::logln(String(getCpuFrequencyMhz()),console::routine); //Get CPU clock
-  console::logln("RAM (free bytes): " + String(esp_get_free_heap_size()));
+void init_CPU(){
+  setCpuFrequencyMhz(240); //Set CPU clock to 240 MHz
+  console::log("CPU Set To (MHz): "+String(getCpuFrequencyMhz())+"\t RAM (kB free): "+String(esp_get_free_heap_size()/1000),console::routine);
 }
-
-int queueSize = 20;
-QueueHandle_t   server_to_engine_queue;
-RingbufHandle_t server_to_engine_buffer;
-
 
 TaskHandle_t taskHandle;
 void setup()
 {
-  initConsole();
-  initCPU();
+  init_console();
+  init_CPU();
+
   CNCFileSystem::init();
-  disableCore0WDT();
-  //disableCore1WDT();
-  CNCServer::init();
+  RFX_Server::init();
+
   delay(1000);
   CNC_ENGINE::init();
 
+  disableCore0WDT();
+  disableCore1WDT();
 }
 // Loop runs on Core 1
 void loop()
 {
- 
+  // All services are handled by loops in CNC_Server and CNC_Engine
 }

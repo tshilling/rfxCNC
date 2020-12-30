@@ -1,4 +1,4 @@
-#include "Console.h"
+#include "console.h"
 namespace console{
     Stream* stream = nullptr;     // Parent type for Serial Streams (And all streams)
     char tabIndex = 0;

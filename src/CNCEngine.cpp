@@ -5,7 +5,7 @@
 #include "main.h"
 #include "CNCEngine.h"
 #include "GCodeParser.h"
-#include <Console.h>
+#include <console.h>
 
 #include "CNCFileSystem.h"
 

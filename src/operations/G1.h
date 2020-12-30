@@ -2,7 +2,7 @@
 #include "Arduino.h"
 #include "operations.h"
 #include "operation_controller.h"
-#include "Console.h"
+#include "console.h"
 #include "bresenham.h"
 #include "step_engine/step_engine.h"
 

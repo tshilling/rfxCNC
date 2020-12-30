@@ -4,7 +4,7 @@
 
 #include "Arduino.h"
 #include "CNCEngineConfig.h"
-#include "Console.h"
+#include "console.h"
 #include "../operations/operations.h"
 
 #define step_engine_buffer_size 64        

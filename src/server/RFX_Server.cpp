@@ -2,34 +2,41 @@
 #include "main.h"
 #include "config.h"
 #include "CNCEngine.h"
-#include "CNCServer.h"
+
+#include "RFX_Server.h"
 
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
-//#include "WebServer.h"
 
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
 #include <string.h>
 #include "CNCFileSystem.h"
-#include "Console.h"
+#include "console.h"
 #include "RFXQueue.h"
 #include "GCodeParser.h"
 #include "operations\operation_controller.h"
 #include "CNCEngine.h"
 #include "state\machineState.h"
 
+#include <ESPmDNS.h>
+//#include "..\asyncTCP\ESPAsyncTCP.h"
+#include "AsyncTCP.h"
+#include "Update.h"
 
 /*
 ################ Server - Isolated to Core 1 ################### 
 */
 
-namespace CNCServer{
+namespace RFX_Server{
     AsyncWebServer server(80);
+    bool restart_requested = false;
     struct configStruct{
         String SSID="";
         String Password="";
+        String dns_name = "rfx";
     } config;
+
     bool read_config_file(){
         console::logln("Reading Config File");
         File configFile = SPIFFS.open("/public/serverConfig.json", "r");
@@ -43,6 +50,8 @@ namespace CNCServer{
                     config.SSID = String((const char*) doc["ssid"]);
                 if(!doc["password"].isNull())
                     config.Password = String((const char*) doc["password"]);
+                if(!doc["dns_name"].isNull())
+                    config.dns_name = String((const char*) doc["dns_name"]);
                 configFile.close();
                 CNCFileSystem::show_file("/public/serverConfig.json");
                 return true;
@@ -57,15 +66,16 @@ namespace CNCServer{
     }
     bool write_config_file(){
         console::logln("Writing server config file");
-        File configFile = SPIFFS.open("/public/server_config.json", "w");
+        File configFile = SPIFFS.open("/public/serverConfig.json", "w");
         if (configFile)
         {
             StaticJsonDocument<512> doc;
             doc["ssid"] = config.SSID;
             doc["password"] = config.Password;
+            doc["dns_name"] = config.dns_name;
             serializeJson(doc, configFile);
             configFile.close();
-            CNCFileSystem::show_file("/public/server_config.json");
+            CNCFileSystem::show_file("/public/serverConfig.json");
             return true;
         }
         else
@@ -77,7 +87,7 @@ namespace CNCServer{
     }
 
     void add_non_standard_endpoints(){
-        server.on("/engine/keepalive",HTTP_GET,[](AsyncWebServerRequest *request){
+        server.on("/engine/status",HTTP_GET,[](AsyncWebServerRequest *request){
             StaticJsonDocument<200> doc;
             String binaryString = "";
             char binary[33];
@@ -129,7 +139,6 @@ namespace CNCServer{
         }); 
         server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
             request->send(CNCFileSystem::fileSystem,"/favicon.png","image/png");
-
         });  
         //dealing with zipped file
         /*
@@ -146,23 +155,27 @@ namespace CNCServer{
             }
         });
         server.on("/server/status", HTTP_GET,[](AsyncWebServerRequest *request){
-            StaticJsonDocument<200> doc;
-            doc["IP"] = WiFi.localIP().toString();
-            doc["SSID"] = WiFi.SSID();
+            StaticJsonDocument<512> doc;
+            doc["ip"] = WiFi.localIP().toString();
+            doc["dns_name"] = config.dns_name;
+            doc["ssid"] = WiFi.SSID();
             if(WiFi.getMode()==WIFI_MODE_AP)
-                doc["MODE"] = "Access Point";
+                doc["mode"] = "Access Point";
             if(WiFi.getMode()==WIFI_MODE_STA)
-                doc["MODE"] = "Station";
+                doc["mode"] = "Station";
             if(WiFi.getMode()==WIFI_MODE_APSTA)
-                doc["MODE"] = "Access Point and Station";
-            doc["HEAP"] = esp_get_free_heap_size();
+                doc["mode"] = "Access Point and Station";
+            doc["heap"] = esp_get_free_heap_size();
             esp_chip_info_t info;
             esp_chip_info(&info);
-            doc["CORES"] = info.cores;
+            doc["cores"] = info.cores;
             if(info.model==1)
-                doc["MODEL"] = "ESP32";
-            doc["REVISION"] = info.revision;
-            doc["FREQ"] = getCpuFrequencyMhz();
+                doc["model"] = "ESP32";
+            doc["revision"] = info.revision;
+            doc["freq"] = getCpuFrequencyMhz();
+            doc["up_time"] = millis();
+            doc["total_bytes"] = String(SPIFFS.totalBytes());
+            doc["used_bytes"] = String(SPIFFS.usedBytes());
             String output = "";
             serializeJson(doc, output);
             request->send(200, "application/json", output);
@@ -170,25 +183,120 @@ namespace CNCServer{
         server.on("/server/settings",HTTP_POST,[](AsyncWebServerRequest *request){
             request->send(200, "text/plain", "ok");
         },NULL,[](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-            StaticJsonDocument<200> doc;
-            deserializeJson(doc, data);
+            StaticJsonDocument<512> doc;
+            console::logln(deserializeJson(doc, data).c_str());
 
-            String ssid = doc["ssid"];
-            String password = doc["password"];
-
-            console::logln("ssid: "+String(ssid));
-            console::logln("password: "+String(password));
-            config.SSID = ssid;
-            config.Password = password;
+            if(!doc["ssid"].isNull()){
+                 String value = String((const char*)doc["ssid"]);
+                 if(value.length()>0)
+                    config.SSID = value;
+            }
+            if(!doc["password"].isNull()){
+                String value  = String((const char*)doc["password"]);
+                 if(value.length()>0)
+                    config.Password = value;
+            }
+            if(!doc["dns_name"].isNull()){
+                String value  = String((const char*)doc["dns_name"]);
+                 if(value.length()>0)
+                    config.dns_name = value;
+            }
             write_config_file();
         });
+        server.on("/server/restart", HTTP_GET,[](AsyncWebServerRequest *request){
+            console::logln("Restart received...");
+            restart_requested = true;
+            request->send(200, "text/html", "ok");
+        });
         server.serveStatic("/",CNCFileSystem::fileSystem,"/public");
+        //#############
+        /*handling uploading firmware file */
+        server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+            
+            // the request handler is triggered after the upload has finished... 
+            AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError())?"fail":"ok");
+            request->send(response);
+            restart_requested = true;  // Tell the main loop to restart the ESP
+
+        },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+            //Upload handler chunks in data
+
+            if(!index){ // if index == 0 then this is the first frame of data
+                console::logln("Firmware update started ("+filename+")...");
+                
+                // calculate sketch space required for the update
+                uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+                if(!Update.begin(maxSketchSpace)){//start with max available size
+                    Update.printError(*console::stream);
+                }
+            }
+            //Write chunked data to the free sketch space
+            if(Update.write(data, len) != len){
+                    Update.printError(*console::stream);
+            }
+            if(final){ // if the final flag is set then this is the last frame of data
+                if(Update.end(true)){ //true to set the size to the current progress
+                    console::logln("Success, rebooting...");
+                } else {
+                    Update.printError(*console::stream);
+                }
+            }
+        });
+
+/*
+        server.on("/update", HTTP_POST, [&](AsyncWebServerRequest *request) {
+            // the request handler is triggered after the upload has finished... 
+            // create the response, add header, and send response
+            AsyncWebServerResponse *response = request->beginResponse((Update.hasError())?500:200, "text/plain", (Update.hasError())?"FAIL":"OK");
+            response->addHeader("Connection", "close");
+            response->addHeader("Access-Control-Allow-Origin", "*");
+            request->send(response);
+            restart_requested = true;
+        }, [&](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) 
+        {
+                //Upload handler chunks in data
+                if (!index) {
+                    if(!request->hasParam("MD5", true)) {
+                        return request->send(400, "text/plain", "MD5 parameter missing");
+                    }
+                    if(!Update.setMD5(request->getParam("MD5", true)->value().c_str())) {
+                        return request->send(400, "text/plain", "MD5 parameter invalid");
+                    }
+                    int cmd = (filename == "filesystem") ? U_SPIFFS : U_FLASH;
+                    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) { // Start with max available size
+                        Update.printError(Serial);
+                        return request->send(400, "text/plain", "OTA could not begin");
+                    }
+                }
+
+                // Write chunked data to the free sketch space
+                if(len){
+                    if (Update.write(data, len) != len) {
+                        return request->send(400, "text/plain", "OTA could not begin");
+                    }
+                }
+                    
+                if (final) { // if the final flag is set then this is the last frame of data
+                    if (!Update.end(true)) { //true to set the size to the current progress
+                        Update.printError(Serial);
+                        return request->send(400, "text/plain", "Could not end OTA");
+                    }
+                }else{
+                    return;
+                }
+            });
+        
+        //#############
+    }
+    
+    */
     }
     bool try_to_connect_to_station(){
+
         // Try to connect to exisiting network
         console::log("Connecting to: "+config.SSID);
         WiFi.begin(config.SSID.c_str(),config.Password.c_str());
-
+        console::logln("Hostname: "+ String(WiFi.getHostname()));
         int i = 0;
         while (WiFi.status() != WL_CONNECTED) 
         {
@@ -201,6 +309,8 @@ namespace CNCServer{
                 return false;
             }
         }
+
+        
         console::logln(" Success.");
         console::logln("IP:\t"+WiFi.localIP().toString());
         return true;
@@ -273,9 +383,26 @@ namespace CNCServer{
     void server_loop(void * parameter){
         init_file_system();
         init_wifi();
+        if(!MDNS.begin(config.dns_name.c_str())) {
+            Serial.println("Error starting mDNS");
+        }
         init_server();
+        int count_down = 4000;
+        long last_time = micros();
         for(;;) {
-            vTaskDelay(1);  // needed to keep watchdog timer happy
+            //long delta = millis() - last_time;
+            //if(delta >= 1000)
+            //{
+                if(restart_requested){
+                    //count_down -= delta;
+                    //console::logln("Restarting in: " + String(count_down));
+                    //if(count_down<=0){
+                        ESP.restart();
+                    //}
+                }
+               // last_time = millis();
+            //}
+            vTaskDelay(50);  // needed to keep watchdog timer happy
         }
     }
 
@@ -297,3 +424,6 @@ namespace CNCServer{
             0); /* Core where the task should run */
     }
 };
+
+
+

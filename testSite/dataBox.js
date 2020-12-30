@@ -60,7 +60,7 @@ table{
     background-color:#f1f1f1;
     font-size:1.6rem;
     width:100%;
-    text-align:right;
+    text-align:left;
     font-weight: bold;
 }
 #checkbox_text{

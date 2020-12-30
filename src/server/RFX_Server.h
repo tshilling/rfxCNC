@@ -1,12 +1,12 @@
 #pragma once
 
-#ifndef CNCServer_h
-#define CNCServer_h
+#ifndef RFX_Server_h
+#define RFX_Server_h
 
 #include <Arduino.h>
 #include "SPIFFS.h"
 
-namespace CNCServer{
+namespace RFX_Server{
     static String apSsid;
 
     void init();

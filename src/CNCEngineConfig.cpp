@@ -1,7 +1,7 @@
 #include "CNCEngineConfig.h"
 #include "Arduino.h"
 #include "CNCFileSystem.h"
-#include "Console.h"
+#include "console.h"
 #include <ArduinoJson.h>
 #include "CNCHelpers.h"
 
