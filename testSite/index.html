@@ -6,7 +6,9 @@
   <title>RFX CONTROL</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="w3.css"> <!-- W3 min css (like bootstrap) -->
+  <link rel="stylesheet" type="text/css" href="default.css"> <!-- custom css styling-->
   <link rel="stylesheet" type="text/css" href="rfx.css"> <!-- custom css styling-->
+  
   <link rel="stylesheet" href="style.css"> <!-- Button Icons -->
 </head>
 
@@ -22,111 +24,10 @@
 
       </div>
       <div id="header-right" class="w3-display-right">
-        <a id="nav_engine" href="#engine" class="w3-button"><span class="icon-cogs"></span></a>
       </div>
     </div>
   </header>
   <div id="main-view" style="margin-top: 32px; margin-bottom: 52px; width:100%">
-    <!--####################### DASHBOARD ##################### -->
-    <div id="dashboard" class="rfx-tab" style="display:none; max-width: 1000px; margin: auto">
-
-      <div class="w3-row-padding">
-        <div class="w3-third">
-          <div class="rfx-card">
-            <div class="rfx-bar w3-metro-darken">
-              <b class=" rfx-bar-item">Machine State</b>
-            </div>
-            <div style="padding-top:8px">
-              <rfx-input type="text" placeholder="placeholder">Test of stuff</rfx-input>
-              <rfx-input type="select" placeholder="placeholder 123">
-                <option value="mm">mm</option>
-                <option value="cm">cm</option>
-                <option value="m">m</option>
-                <option value="in">in</option>
-                <option value="ft">ft</option>
-              </rfx-input>
-              <rfx-input type="float" placeholder="placeholder 123">Float</rfx-input>
-              <rfx-input type="checkbox" value="true">A Check Box</rfx-input>
-              <rfx-input type="integer" units="(usec/sec)">A long integer label</rfx-input>
-            </div>
-          </div>
-        </div>
-        <div class="w3-third">
-          <div class="rfx-card">
-            <div id="status-bits" style="display: inline-flexbox; width:100%">
-              <div id="status0" class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-              <div class="led"></div>
-
-            </div>
-          </div>
-        </div>
-        <div class="w3-third">
-          <div class="rfx-card">
-            3
-          </div>
-        </div>
-      </div>
-
-    </div>
-    <!--####################################################### -->
-    <!--####################### ENGINE ####################### -->
-    <div id="engine" class="tab" style="display:none; max-width: 1000px; margin: auto">
-      <div class="" style="width: 100%; padding:16px; margin: auto; min-width: 548px;">
-        <div class="w3-card">
-          <div class="rfx-bar w3-metro-darken">
-            <b class="rfx-bar-item">Engine Config</b>
-            <a id="engine_setting_save_icon" href="#" class="rfx-bar-item w3-button w3-border-right w3-border-left"
-              onclick="submitEngineInfo()"><span class="icon-floppy-disk"></span></a>
-            <div id="engine_setting_msg" class="rfx-bar-item"></div>
-          </div>
-          <div id="engineConfigContainer" class=""
-            style=" display:flex; justify-content: center; flex-wrap: wrap; margin: auto; width:100%; padding:8px">
-            <div class="" style="width: 500px; padding: 8px;">
-              <div class="w3-card">
-                <div class="rfx-bar  w3-metro-darken">
-                  <b>General</b>
-                </div>
-                <div class="w3-container" style="padding: 8px; padding-bottom: 16px;">
-                  <div class="some-class" type="text">test</div>
-
-
-                </div>
-              </div>
-              <!--##########-->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
   <footer id="footer_toolbar" class="rfx-footer rfx-bar w3-metro-darken w3-metro-darken">
     <div class="w3-display-container" style="width: 100%;">
@@ -290,5 +191,6 @@
   </div>
 </template>
 
+<script type="module" src="./engine.js"></script>
 <script type="module" src="./server.js"></script>
 <script src="./index.js"></script>

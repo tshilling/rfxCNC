@@ -1,10 +1,10 @@
 #pragma once
 #include "Arduino.h"
-#include "RFXQueue.h"
+#include <RFXQueue.h>
 #include "..\state\machineState.h"
 #include "operations.h"
-#include "GCodeParser.h"
-#include "CNCHelpers.h"
+#include "..\GCodeParser.h"
+#include "..\CNCHelpers.h"
 #include "G1.h"
 #include "G4.h"
 #include "G28.h"
@@ -415,10 +415,10 @@ namespace CNC_ENGINE{
                         CNC_ENGINE::operation_result_enum r = operation->init(sticky_parameters, parameter_in_command);
                         if(r == success){
                             add_operation_to_queue(operation);
-                            console::logln("G28 - SUCCESS");
+                            console.logln("G28 - SUCCESS");
                         }
                         else{
-                            console::logln("G28 - BAD: "+String(r));
+                            console.logln("G28 - BAD: "+String(r));
                         }
                     }
                     if(pair.value == 30){   // Probe z axis
@@ -442,10 +442,10 @@ namespace CNC_ENGINE{
                         CNC_ENGINE::operation_result_enum r = operation->init(sticky_parameters);
                         if(r == success){
                             add_operation_to_queue(operation);
-                            console::logln("G1 - SUCCESS");
+                            console.logln("G1 - SUCCESS");
                         }
                         else{
-                            console::logln("G1 - BAD: "+String(r));
+                            console.logln("G1 - BAD: "+String(r));
                         }
                 }
                 else if(planner_state.modal.motion==machine_state_class::G2){
@@ -476,7 +476,7 @@ namespace CNC_ENGINE{
             }
 
             plan(false);
-            console::logln("SUCCESS");
+            console.logln("SUCCESS");
             return success;
         }
     };

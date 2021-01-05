@@ -1,16 +1,17 @@
 #include "Arduino.h"
 #include "CNCEngineConfig.h"
-#include "step_engine\step_engine.h"
+
+#include "step_engine/step_engine.h"
 
 #include "main.h"
 #include "CNCEngine.h"
 #include "GCodeParser.h"
-#include <console.h>
+#include <console.h>        // Common serial port out interface
 
-#include "CNCFileSystem.h"
+#include "RFX_File_System.h"
 
-#include "state\machineState.h"
-#include "operations\operation_controller.h"
+#include "state/machineState.h"
+#include "operations/operation_controller.h"
 /*
     CORE:   0
 */
@@ -23,12 +24,13 @@ namespace CNC_ENGINE{
     TaskHandle_t taskHandle;
 
     void printData(){
-        console::log(String(millis()));       
-        console::log(String(CNC_ENGINE::machine_state.getVelocity()),10); 
+
+        console.log(String(millis()));       
+        console.log(String(CNC_ENGINE::machine_state.getVelocity()),10); 
         for(uint8_t i = 0; i < 6;i++){
-            console::log(String((float)CNC_ENGINE::machine_state.absolute_position_steps[i]),(i+2)*10);///(float)CNC_ENGINE::Config::axis[i].stepsPerUnit,2));
+            console.log(String((float)CNC_ENGINE::machine_state.absolute_position_steps[i]),(i+2)*10);///(float)CNC_ENGINE::Config::axis[i].stepsPerUnit,2));
         }
-        console::logln();
+        console.logln();
     }
     uint32_t old_status = 0;
     void _engineLoop(void * parameter){
@@ -36,9 +38,9 @@ namespace CNC_ENGINE{
 
         init_machine_state();
         step_engine::init();
-        console::logln("Axis Count: "+ String(Config::axis_count));
+        console.logln("Axis Count: "+ String(Config::axis_count));
             for(uint8_t i=0;i<Config::axis_count;i++){
-                console::log(String(Config::axis[i].id)+" ");
+                console.log(String(Config::axis[i].id)+" ");
             }
         command_buffer.resize_queue(32);      
         operation_controller.init(128);
@@ -48,7 +50,7 @@ namespace CNC_ENGINE{
         //operation_controller.add_operation_to_queue(&command);
 
         startTime = micros();
-        machine_state.is_active = true;
+        //machine_state.is_active = true;
         for(;;) {
             if(machine_state.status_bits != 0){
                 machine_state.velocity_squared = 0; // reset velocity to zero
@@ -56,7 +58,7 @@ namespace CNC_ENGINE{
             if(machine_state.is_active){
                 operation_class* operation = operation_controller.operation_queue.getHeadItemPtr();
                 if(operation){
-                    console::logln(operation->get_log());
+                    console.logln(operation->get_log());
                     if(!operation->execute_in_interrupt){
                         if(operation->execute()){
                             operation_controller.operation_queue.dequeue();
@@ -67,13 +69,13 @@ namespace CNC_ENGINE{
             if(old_status != machine_state.status_bits){
                 for(uint8_t i = 0; i<32;i++){
                     if(bitRead(machine_state.status_bits,i)==1){
-                        console::log(" 1");
+                        console.log(" 1");
                     }
                     else{
-                        console::log(" 0");
+                        console.log(" 0");
                     }
                 }
-                console::logln();
+                console.logln();
                 old_status = machine_state.status_bits;
             }
             vTaskDelay(50);

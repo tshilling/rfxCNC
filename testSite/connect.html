@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <title>RFX CONTROL</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" type="text/css" href="rfx.css"> <!-- custom css styling-->
+
+    <link rel="stylesheet" type="text/css" href="default.css"> <!-- custom css styling-->
 </head>
 
 <body>
-    <div class="rfx-panel">
-        <label id="header-label">Wifi Settings</label>
+    <div class="rfx-panel" style="max-width: 400px; margin:auto">
+        <label id="header-label">Wifi</label>
         <div>
             <label><b>Name on network</b></label>
             <input id="dns_name" class="rfx-input" type="text" placeholder="Access server via name">
@@ -17,25 +17,26 @@
             <input id="ssid" class="rfx-input" type="text" placeholder="Wifi Network Name">
             <label><b>Password</b></label>
             <input id="password" class="rfx-input" type="password" placeholder="Wifi Password">
+            <button id="submit-button" class="rfx-button" style="width:100%;"
+                onclick="submit()">Submit</button>
         </div>
     </div>
-    <button id="submit-button" class="rfx-button" style="width:100%;font-size: 1.5rem;" onclick="submit()">Submit</button>
 </body>
+
 <script>
     document.querySelectorAll('.rfx-input').forEach(item => {
         item.addEventListener('change', event => {
-            item.classList.remove("rfx-good")
-            item.classList.add("rfx-caution")
-
-            let el = document.getElementById('submit-button')
-            el.classList.remove("rfx-good")
-            el.classList.add("rfx-caution")
-            el.classList.remove("rfx-warning")
-            el = document.getElementById('header-label');
-            el.innerText = "Wifi Settings: Need to submit"
-            el.classList.remove("rfx-good")
-            el.classList.add("rfx-caution")
-            el.classList.remove("rfx-warning")
+            console.log("change")
+            function mark(el) {
+                with (el.classList) {
+                    remove("rfx-good")
+                    add("rfx-caution")
+                    remove("rfx-warning")
+                }
+            }
+            mark(item)
+            mark(document.getElementById('submit-button'))
+            document.getElementById('header-label').innerText = "Wifi Settings: Need to submit"
         })
     })
     function getServerInfo() {
@@ -52,7 +53,7 @@
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.send();
     }
-    function submit(){
+    function submit() {
         let data = {};
         // Build json data packet 
         document.querySelectorAll('.rfx-input').forEach(item => {
@@ -60,26 +61,26 @@
         })
         var xhr = new XMLHttpRequest();
         function bad_response() {
-            let el = document.getElementById('submit-button')
-            el.classList.remove("rfx-good")
-            el.classList.remove("rfx-caution")
-            el.classList.add("rfx-warning")
-            el = document.getElementById('header-label');
-            el.classList.remove("rfx-good")
-            el.classList.remove("rfx-caution")
-            el.classList.add("rfx-warning")
-         }
+            function mark(el) {
+                with (el.classList) {
+                    remove("rfx-good")
+                    remove("rfx-caution")
+                    add("rfx-warning")
+                }
+            }
+            mark(document.getElementById('submit-button'))
+        }
         xhr.onload = () => {
             if (xhr.response === 'ok') {
-                let el = document.getElementById('submit-button')
-                        el.classList.add("rfx-good")
-                        el.classList.remove("rfx-caution")
-                        el.classList.remove("rfx-warning")
-                    el = document.getElementById('header-label');
-                        el.innerText = "Wifi Settings: Saved"
-                        el.classList.add("rfx-good")
-                        el.classList.remove("rfx-caution")
-                        el.classList.remove("rfx-warning")
+                function mark(el) {
+                    with (el.classList) {
+                        add("rfx-good")
+                        remove("rfx-caution")
+                        remove("rfx-warning")
+                    }
+                }
+                mark(document.getElementById('submit-button'))
+                document.getElementById('header-label').innerText = "Wifi Settings: Saved"
                 document.querySelectorAll('.rfx-input').forEach(item => {
                     item.classList.remove("rfx-good")
                     item.classList.remove("rfx-caution")
@@ -101,7 +102,7 @@
             bad_response()
         }
         xhr.timeout = 2000
-        xhr.open("POST", "http://192.168.4.62/server/settings", true);
+        xhr.open("POST", "/server/settings", true);
         xhr.setRequestHeader("Content-Type", "application/json");
         console.log(JSON.stringify(data))
         xhr.send(JSON.stringify(data));

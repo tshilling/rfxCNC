@@ -1,29 +1,15 @@
-#include <Arduino.h>
-#include "main.h"
-#include "config.h"
-#include "CNCEngine.h"
-
+// Import core functionality
+#include <console.h>        // Common serial port out interface
 #include "RFX_Server.h"
+#include "../RFX_File_System.h"  
+#include "sections.h"
+#include <EEPROM.h>
 
 #include "WiFi.h"
-#include "ESPAsyncWebServer.h"
-
-#include <AsyncJson.h>
 #include <ArduinoJson.h>
-#include <string.h>
-#include "CNCFileSystem.h"
-#include "console.h"
-#include "RFXQueue.h"
-#include "GCodeParser.h"
-#include "operations\operation_controller.h"
-#include "CNCEngine.h"
-#include "state\machineState.h"
-
 #include <ESPmDNS.h>
-//#include "..\asyncTCP\ESPAsyncTCP.h"
-#include "AsyncTCP.h"
-#include "Update.h"
-
+//#include "AsyncTCP.h"
+#include <Update.h>
 /*
 ################ Server - Isolated to Core 1 ################### 
 */
@@ -32,61 +18,53 @@ namespace RFX_Server{
     AsyncWebServer server(80);
     bool restart_requested = false;
     struct configStruct{
-        String SSID="";
-        String Password="";
-        String dns_name = "rfx";
+        String SSID= DEFAULT_SSID;
+        String Password= DEFAULT_PASSWORD;
+        String dns_name = DEFUALT_DNS_NAME;
+        String username = DEFAULT_USERNAME;
+        String user_password = DEFAULT_USER_PASSWORD;
     } config;
-
-    bool read_config_file(){
-        console::logln("Reading Config File");
-        File configFile = SPIFFS.open("/public/serverConfig.json", "r");
-        if (configFile)
-        {
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, configFile);
-            if(!error)
-            {
-                if(!doc["ssid"].isNull())
-                    config.SSID = String((const char*) doc["ssid"]);
-                if(!doc["password"].isNull())
-                    config.Password = String((const char*) doc["password"]);
-                if(!doc["dns_name"].isNull())
-                    config.dns_name = String((const char*) doc["dns_name"]);
-                configFile.close();
-                CNCFileSystem::show_file("/public/serverConfig.json");
-                return true;
-            }
-            console::logln("Config error: "+String(error.c_str()));
-        }
-        else{
-            console::logln("Config File Not Found", console::error);
-        }
-        configFile.close();
-        return false;        
+    bool write_config(){
+        console.log("Writing EEPROM...");
+        EEPROM.write(0,'~'); //Mark that a write has occurred
+        int i = 1;
+        EEPROM.writeString(i,config.SSID);
+        i+=config.SSID.length()+1;
+        EEPROM.writeString(i,config.Password);
+        i+=config.Password.length()+1;
+        EEPROM.writeString(i,config.dns_name);
+        i+=config.dns_name.length()+1;
+        EEPROM.writeString(i,config.username);
+        i+=config.username.length()+1;
+        EEPROM.writeString(i,config.user_password);
+        i+=config.user_password.length()+1;
+        console.logln("done");
+        return true;
     }
-    bool write_config_file(){
-        console::logln("Writing server config file");
-        File configFile = SPIFFS.open("/public/serverConfig.json", "w");
-        if (configFile)
-        {
-            StaticJsonDocument<512> doc;
-            doc["ssid"] = config.SSID;
-            doc["password"] = config.Password;
-            doc["dns_name"] = config.dns_name;
-            serializeJson(doc, configFile);
-            configFile.close();
-            CNCFileSystem::show_file("/public/serverConfig.json");
-            return true;
+    bool read_config(){
+        console.log("Reading EEPROM...");
+        if(EEPROM.read(0) !='~'){
+            console.logln("EEPROM is fresh, initializing...");
+            write_config();
         }
-        else
-        {
-            console::logln("Server config file not found", console::error);
-        } 
-        configFile.close();
-        return false;  
+        int i = 1;
+        config.SSID = EEPROM.readString(i);
+        i+=config.SSID.length()+1;
+        config.Password = EEPROM.readString(i);
+        i+=config.Password.length()+1;
+        config.dns_name = EEPROM.readString(i);
+        i+=config.dns_name.length()+1;
+        config.username = EEPROM.readString(i);
+        i+=config.username.length()+1;
+        config.user_password = EEPROM.readString(i);
+        i+=config.user_password.length()+1;
+        console.logln("done");
+        return true;
     }
+    
 
     void add_non_standard_endpoints(){
+       /*
         server.on("/engine/status",HTTP_GET,[](AsyncWebServerRequest *request){
             StaticJsonDocument<200> doc;
             String binaryString = "";
@@ -131,19 +109,35 @@ namespace RFX_Server{
             }
             request->send(200, "text/plain", "ok");
         });
+        */
     }
     void add_standard_endpoints(){
         server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-            request->send(CNCFileSystem::fileSystem,"/index.html","text/html");
-
+            request->send(RFX_FILE_SYSTEM::fileSystem,"/index.html","text/html");
+        }); 
+        server.on("/connect", HTTP_GET, [](AsyncWebServerRequest *request){
+            String connect = template_start_head + template_style + template_end_head + template_connect;
+            request->send(200,"text/html",connect);
+        }); 
+        server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
+            String connect = template_start_head + template_style + template_end_head + template_firmware;
+            request->send(200,"text/html",connect);
+        }); 
+        server.on("/default", HTTP_GET, [](AsyncWebServerRequest *request){
+            String connect = template_start_head + template_style + template_end_head + template_default;
+            request->send(200,"text/html",connect);
+        }); 
+        server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request){
+            String connect = template_start_head + template_style + template_end_head + template_stats;
+            request->send(200,"text/html",connect);
         }); 
         server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
-            request->send(CNCFileSystem::fileSystem,"/favicon.png","image/png");
+            request->send(RFX_FILE_SYSTEM::fileSystem,"/favicon.png","image/png");
         });  
         //dealing with zipped file
         /*
         server.on("/bootstrap.css", HTTP_GET, [](AsyncWebServerRequest *request){
-            AsyncWebServerResponse *response = request->beginResponse(CNCFileSystem::fileSystem,"/public/bootstrap.min.css.gz","text/css", false);
+            AsyncWebServerResponse *response = request->beginResponse(RFX_FILE_SYSTEM::fileSystem,"/public/bootstrap.min.css.gz","text/css", false);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
         });   */
@@ -165,7 +159,9 @@ namespace RFX_Server{
                 doc["mode"] = "Station";
             if(WiFi.getMode()==WIFI_MODE_APSTA)
                 doc["mode"] = "Access Point and Station";
-            doc["heap"] = esp_get_free_heap_size();
+                
+            doc["free_heap"] = String(ESP.getFreeHeap());// esp_get_free_heap_size();
+            doc["total_heap"] = String(ESP.getHeapSize());
             esp_chip_info_t info;
             esp_chip_info(&info);
             doc["cores"] = info.cores;
@@ -176,6 +172,8 @@ namespace RFX_Server{
             doc["up_time"] = millis();
             doc["total_bytes"] = String(SPIFFS.totalBytes());
             doc["used_bytes"] = String(SPIFFS.usedBytes());
+            doc["version"] = String(VERSION);
+            doc["firmware"] = String(FIRMWARE);
             String output = "";
             serializeJson(doc, output);
             request->send(200, "application/json", output);
@@ -184,7 +182,7 @@ namespace RFX_Server{
             request->send(200, "text/plain", "ok");
         },NULL,[](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
             StaticJsonDocument<512> doc;
-            console::logln(deserializeJson(doc, data).c_str());
+            console.logln(deserializeJson(doc, data).c_str());
 
             if(!doc["ssid"].isNull()){
                  String value = String((const char*)doc["ssid"]);
@@ -201,18 +199,39 @@ namespace RFX_Server{
                  if(value.length()>0)
                     config.dns_name = value;
             }
-            write_config_file();
+            write_config();
         });
         server.on("/server/restart", HTTP_GET,[](AsyncWebServerRequest *request){
-            console::logln("Restart received...");
+            console.logln("Restart received...");
             restart_requested = true;
             request->send(200, "text/html", "ok");
+        });        
+        server.on("/fs/internal", HTTP_GET,[](AsyncWebServerRequest *request){
+            int paramsNr = request->params();
+            Serial.println(paramsNr);
+            DynamicJsonDocument doc(2048);
+            //StaticJsonDocument<4096> doc;
+            doc["total_bytes"] = String(SPIFFS.totalBytes());
+            doc["used_bytes"] = String(SPIFFS.usedBytes());
+            JsonArray filelist = doc.createNestedArray("files");
+            File root = SPIFFS.open("/public");
+            File file = root.openNextFile();
+            while(file){
+                JsonObject jsonFile = filelist.createNestedObject();
+                jsonFile["name"] = String(file.name());
+                jsonFile["size"] = file.size();
+                jsonFile["is_dir"] = file.isDirectory();
+                file = root.openNextFile();
+            }
+            String output = "";
+            serializeJsonPretty(doc, output);
+            request->send(200, "application/json", output);
         });
-        server.serveStatic("/",CNCFileSystem::fileSystem,"/public");
-        //#############
+        
+        server.serveStatic("/",RFX_FILE_SYSTEM::fileSystem,"/public");
+
         /*handling uploading firmware file */
         server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
-            
             // the request handler is triggered after the upload has finished... 
             AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError())?"fail":"ok");
             request->send(response);
@@ -222,118 +241,77 @@ namespace RFX_Server{
             //Upload handler chunks in data
 
             if(!index){ // if index == 0 then this is the first frame of data
-                console::logln("Firmware update started ("+filename+")...");
+                console.logln("Firmware update started ("+filename+")...");
                 
                 // calculate sketch space required for the update
                 uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
                 if(!Update.begin(maxSketchSpace)){//start with max available size
-                    Update.printError(*console::stream);
+                    Update.printError(*console.stream);
                 }
             }
             //Write chunked data to the free sketch space
             if(Update.write(data, len) != len){
-                    Update.printError(*console::stream);
+                    Update.printError(*console.stream);
             }
             if(final){ // if the final flag is set then this is the last frame of data
                 if(Update.end(true)){ //true to set the size to the current progress
-                    console::logln("Success, rebooting...");
+                    console.logln("Success, rebooting...");
                 } else {
-                    Update.printError(*console::stream);
+                    Update.printError(*console.stream);
                 }
             }
         });
-
-/*
-        server.on("/update", HTTP_POST, [&](AsyncWebServerRequest *request) {
-            // the request handler is triggered after the upload has finished... 
-            // create the response, add header, and send response
-            AsyncWebServerResponse *response = request->beginResponse((Update.hasError())?500:200, "text/plain", (Update.hasError())?"FAIL":"OK");
-            response->addHeader("Connection", "close");
-            response->addHeader("Access-Control-Allow-Origin", "*");
-            request->send(response);
-            restart_requested = true;
-        }, [&](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) 
-        {
-                //Upload handler chunks in data
-                if (!index) {
-                    if(!request->hasParam("MD5", true)) {
-                        return request->send(400, "text/plain", "MD5 parameter missing");
-                    }
-                    if(!Update.setMD5(request->getParam("MD5", true)->value().c_str())) {
-                        return request->send(400, "text/plain", "MD5 parameter invalid");
-                    }
-                    int cmd = (filename == "filesystem") ? U_SPIFFS : U_FLASH;
-                    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) { // Start with max available size
-                        Update.printError(Serial);
-                        return request->send(400, "text/plain", "OTA could not begin");
-                    }
-                }
-
-                // Write chunked data to the free sketch space
-                if(len){
-                    if (Update.write(data, len) != len) {
-                        return request->send(400, "text/plain", "OTA could not begin");
-                    }
-                }
-                    
-                if (final) { // if the final flag is set then this is the last frame of data
-                    if (!Update.end(true)) { //true to set the size to the current progress
-                        Update.printError(Serial);
-                        return request->send(400, "text/plain", "Could not end OTA");
-                    }
-                }else{
-                    return;
-                }
-            });
-        
-        //#############
-    }
-    
-    */
     }
     bool try_to_connect_to_station(){
-
         // Try to connect to exisiting network
-        console::log("Connecting to: "+config.SSID);
+        console.logln("Connecting to: "+config.SSID);
         WiFi.begin(config.SSID.c_str(),config.Password.c_str());
-        console::logln("Hostname: "+ String(WiFi.getHostname()));
+        console.logln("Hostname: "+ config.dns_name);
         int i = 0;
         while (WiFi.status() != WL_CONNECTED) 
         {
             delay(500);
-            console::log(".");
+            console.log(".");
             i = i + 1;
             if(i > 20)  // Wait for 10sec
             {
-                console::logln(" Could not connect.", console::error);
+                console.logln(" Could not connect.", console.error);
                 return false;
             }
         }
-
-        
-        console::logln(" Success.");
-        console::logln("IP:\t"+WiFi.localIP().toString());
+        console.logln(" Success.");
+        console.logln("IP:\t"+WiFi.localIP().toString());
         return true;
     }
     bool try_to_establish_access_point(){
-        console::log("Establishing Access Point as: "+apSsid+"... ");
+        console.log("Establishing Access Point as: "+apSsid+"... ");
         if(WiFi.softAP(apSsid.c_str(), APPASSWORD)){
-            console::logln("Done, access point wifi mode establish:");
-            console::tabIndex++;
-            console::logln("SSId:\t\t"+apSsid);
-            console::logln("PW:\t\t"+String(APPASSWORD));
-            console::logln("Local IP:\t"+WiFi.softAPIP().toString());
-            console::tabIndex--;
+            console.logln("Done, access point wifi mode establish:");
+            console.tabIndex++;
+            console.logln("SSId:\t\t"+apSsid);
+            console.logln("PW:\t\t"+String(APPASSWORD));
+            console.logln("Local IP:\t"+WiFi.softAPIP().toString());
+            console.tabIndex--;
             config.SSID = apSsid;
             return true;
         }
         else
         {
-            console::logln("Failed");
+            console.logln("Failed");
         }
         return false;
     }
     bool init_wifi(){
+        if(config.dns_name.length()==0)
+            config.dns_name = DEFUALT_DNS_NAME;
+        WiFi.disconnect();
+        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);  // This is a MUST!
+        if (!WiFi.setHostname(config.dns_name.c_str())) {
+            Serial.println("Hostname failed to configure");
+        }
+        if(!MDNS.begin(config.dns_name.c_str())) {
+            Serial.println("Error starting mDNS");
+        }
         // If there is anything set in the config file for SSID
         if(config.SSID.length()!=0){
             if(try_to_connect_to_station())
@@ -345,63 +323,38 @@ namespace RFX_Server{
     String processor(const String& var){
         /*
         if(var == "SSID")
-        {
             return config.SSID;
-        }
-        if(var == "MODE")
-        {
-            wifi_mode_t M = WiFi.getMode();
-            if(M==WIFI_AP)
-                return F("WiFi Host");
-            if(M==WIFI_STA)
-                return F("WiFi Client");
-            if(M==WIFI_AP_STA)
-                return F("WiFi Host & Client");
-        }
-        if(var == "IP")
-            return WiFi.localIP().toString();
         */
         return String();
     }
 
     void init_server(){       
- 
+        
         add_standard_endpoints();
         add_non_standard_endpoints();
-        DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-        DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
+        #ifdef ALLOW_CORS
+            DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+            DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
+        #endif
         server.begin();
     }
     void init_file_system(){
-        CNCFileSystem::init();
+        RFX_FILE_SYSTEM::init();
         delay(100);
-        read_config_file();
+        read_config();
         delay(100);
     }
     
     //
     void server_loop(void * parameter){
+        EEPROM.begin(512);
         init_file_system();
         init_wifi();
-        if(!MDNS.begin(config.dns_name.c_str())) {
-            Serial.println("Error starting mDNS");
-        }
         init_server();
-        int count_down = 4000;
-        long last_time = micros();
         for(;;) {
-            //long delta = millis() - last_time;
-            //if(delta >= 1000)
-            //{
-                if(restart_requested){
-                    //count_down -= delta;
-                    //console::logln("Restarting in: " + String(count_down));
-                    //if(count_down<=0){
-                        ESP.restart();
-                    //}
-                }
-               // last_time = millis();
-            //}
+            if(restart_requested){
+                ESP.restart();
+            }
             vTaskDelay(50);  // needed to keep watchdog timer happy
         }
     }

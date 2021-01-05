@@ -3,8 +3,8 @@
 #define step_engine_h
 
 #include "Arduino.h"
-#include "CNCEngineConfig.h"
-#include "console.h"
+#include "../CNCEngineConfig.h"
+#include <console.h>        // Common serial port out interface
 #include "../operations/operations.h"
 
 #define step_engine_buffer_size 64        

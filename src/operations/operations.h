@@ -1,11 +1,11 @@
 #pragma once
 #include "Arduino.h"
 #include "../state/machineState.h"
-#include "CNCEngineConfig.h"
+#include "../CNCEngineConfig.h"
 //#include "operation_controller.h"
-#include "CNCHelpers.h"
+#include "../CNCHelpers.h"
 #include "bresenham.h"
-#include "console.h"
+#include "../console/console.h"
 
 namespace CNC_ENGINE{
     enum operation_result_enum{
