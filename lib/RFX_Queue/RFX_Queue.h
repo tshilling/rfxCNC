@@ -13,7 +13,7 @@ USAGE:
 */
 #include "Arduino.h"
 template <typename T>
-class rfxQueue{
+class rfx_queue{
   
   uint16_t count = 0;
   uint16_t index_of_Tail = 0;
@@ -92,13 +92,13 @@ class rfxQueue{
     nodes.reserve(size_of_buffer);
     nodes.resize(size_of_buffer);
   }
-  rfxQueue(){
+  rfx_queue(){
     index_of_Tail = 0;
     count = 0;
     Head = nullptr;
     Tail = nullptr;
   }
-  ~rfxQueue(){
+  ~rfx_queue(){
     
   }
   Node* getHeadPtr(){

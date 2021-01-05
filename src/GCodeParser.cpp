@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include <console.h>
+#include <RFX_Console.h>
 #include "GCodeParser.h"
 #include "CNCHelpers.h"
 

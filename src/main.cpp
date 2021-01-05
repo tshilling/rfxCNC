@@ -1,19 +1,20 @@
 #include <Arduino.h>
 #include "main.h"
 #include "config.h"
-#include <console.h>        // Common serial port out interface
+#include <RFX_Console.h> // Common serial port out interface
 #include "CNCEngine.h"
-#include "server\RFX_Server.h"
-#include "RFX_File_System.h"
+#include <RFX_Server.h>
 #include "esp32-hal-cpu.h"
 
-void init_console(){
+void init_console()
+{
   Serial.begin(SERIALBAUD);
   console.init(&Serial);
 }
-void init_CPU(){
+void init_CPU()
+{
   setCpuFrequencyMhz(240); //Set CPU clock to 240 MHz
-  console.log("CPU Set To (MHz): "+String(getCpuFrequencyMhz())+"\t RAM (kB free): "+String(esp_get_free_heap_size()/1000),console.routine);
+  console.log("CPU Set To (MHz): " + String(getCpuFrequencyMhz()) + "\t RAM (kB free): " + String(esp_get_free_heap_size() / 1000), console.routine);
 }
 
 TaskHandle_t taskHandle;

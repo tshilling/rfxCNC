@@ -1,7 +1,7 @@
 #include "CNCEngineConfig.h"
 #include "Arduino.h"
 #include "RFX_FILE_SYSTEM.h"
-#include <console.h>        // Common serial port out interface
+#include <RFX_Console.h>        // Common serial port out interface
 #include <ArduinoJson.h>
 #include "CNCHelpers.h"
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "Arduino.h"
-#include <RFXQueue.h>
+#include <Arduino.h>
+#include <RFX_Queue.h>
 #include "..\state\machineState.h"
 #include "operations.h"
 #include "..\GCodeParser.h"
@@ -65,7 +65,7 @@ namespace CNC_ENGINE{
             operation_class* current_operation = nullptr; 
             float sticky_parameters[26] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
         public:
-        rfxQueue<operation_class> operation_queue;
+        rfx_queue<operation_class> operation_queue;
         operation_controller_class(){
         }
         ~operation_controller_class(){
@@ -80,7 +80,7 @@ namespace CNC_ENGINE{
         void clip_speed_to_achievable(float* V0_squared, float* Vc_squared, float* Vf_squared, float* acceleration, float* distance){
             *Vf_squared = MIN(abs((*V0_squared) + 2 * (*acceleration) * (*distance)),abs((*Vc_squared)));
         }
-        rfxQueue<operation_class>::Node* get_motion_working_backward(rfxQueue<operation_class>::Node* start){
+        rfx_queue<operation_class>::Node* get_motion_working_backward(rfx_queue<operation_class>::Node* start){
             while(start!=nullptr){
                 if(start->item->is_movement)
                     return start;
@@ -88,7 +88,7 @@ namespace CNC_ENGINE{
             }
             return nullptr;
         }
-        rfxQueue<operation_class>::Node* get_motion_working_forward(rfxQueue<operation_class>::Node* start){
+        rfx_queue<operation_class>::Node* get_motion_working_forward(rfx_queue<operation_class>::Node* start){
             while(start!=nullptr){
                 if(start->item->is_movement)
                     return start;
@@ -97,7 +97,7 @@ namespace CNC_ENGINE{
             return nullptr;
         }
         void plan(bool update_all){
-            rfxQueue<operation_class>::Node* node = operation_queue.getTailPtr();
+            rfx_queue<operation_class>::Node* node = operation_queue.getTailPtr();
             if(node==nullptr)
                 return;
             // There are two different modes of planning, ALL, and optimized

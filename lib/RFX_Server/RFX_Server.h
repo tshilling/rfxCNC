@@ -4,6 +4,7 @@
 #define RFX_Server_h
 
 #include <Arduino.h>
+#include "RFX_File_System.h"  
 #include "ESPAsyncWebServer.h"
 
 #define APPASSWORD  "rfxsetup"

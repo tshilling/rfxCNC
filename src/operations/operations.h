@@ -5,7 +5,7 @@
 //#include "operation_controller.h"
 #include "../CNCHelpers.h"
 #include "bresenham.h"
-#include "../console/console.h"
+#include <RFX_Console.h>
 
 namespace CNC_ENGINE{
     enum operation_result_enum{
