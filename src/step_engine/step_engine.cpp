@@ -145,11 +145,21 @@ namespace step_engine{
         uint8_t bit = 0;
         machine_state.status_bits = 0;
         for(uint8_t i = 0; i < Config::axis_count;i++){
-            if(Config::axis[i].limit_pin_max>=0){
-                bitWrite(machine_state.status_bits,bit,     digitalRead(Config::axis[i].limit_pin_min)!=Config::axis[i].limit_pin_min_invert);
-                bitWrite(machine_state.status_bits,bit+1,   digitalRead(Config::axis[i].limit_pin_max)!=Config::axis[i].limit_pin_max_invert);
+            if(Config::axis[i].limit_pin_min>=0){
+                bitWrite(machine_state.status_bits,bit++,     digitalRead(Config::axis[i].limit_pin_min)!=Config::axis[i].limit_pin_min_invert);
+            }else{
+                bitWrite(machine_state.status_bits,bit++,0);
             }
-            bit+=2;
+            if(Config::axis[i].limit_pin_max>=0){
+                bitWrite(machine_state.status_bits,bit++,   digitalRead(Config::axis[i].limit_pin_max)!=Config::axis[i].limit_pin_max_invert);
+            }else{
+                bitWrite(machine_state.status_bits,bit++,0);
+            }
+            if(Config::axis[i].home_pin>=0){
+                bitWrite(machine_state.status_bits,bit++,   digitalRead(Config::axis[i].home_pin)!=Config::axis[i].home_pin_invert);
+            }else{
+                bitWrite(machine_state.status_bits,bit++,0);
+            }
         }
         if(machine_state.is_active){
             // Enable floating point sub processor and make a copy of the existing registry

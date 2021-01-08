@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include "CNCEngineConfig.h"
 
@@ -22,7 +23,7 @@ namespace CNC_ENGINE{
 void add_non_standard_endpoints()
 {
   RFX_Server::server.on("/engine/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    StaticJsonDocument<200> doc;
+    StaticJsonDocument<512> doc;
     String binaryString = "";
     char binary[33];
     for (uint8_t i = 0; i < 32; i++)
@@ -43,24 +44,59 @@ void add_non_standard_endpoints()
 
     doc["status"] = String(binary);
     doc["time"] = String(millis());
+    JsonArray axis_array = doc.createNestedArray("axis");
+    //JsonArray axis_array = doc.to<JsonArray>();
+    for (uint8_t i = 0; i < Config::axis_count; i++)
+    {
+      JsonObject axis = axis_array.createNestedObject();
+      axis["position"] = machine_state.absolute_position_steps[i];
+    }
+
     String output = "";
     serializeJson(doc, output);
     request->send(200, "application/json", output);
   });
-  RFX_Server::server.on("/engine/api", HTTP_GET, [](AsyncWebServerRequest *request) {
+  RFX_Server::server.on("/engine/api", HTTP_POST, [](AsyncWebServerRequest *request) {
+    console.logln("param rx'd: ");
     int paramsNr = request->params();
-    Serial.println(paramsNr);
     for (int i = 0; i < paramsNr; i++)
     {
       AsyncWebParameter *p = request->getParam(i);
+      console.logln(p->name() + " = " + p->value());
       if (p->name() == "code")
-      {
+      {    console.logln("code rx'd: ");
         CNC_ENGINE::command_class command = CNC_ENGINE::parse_gcode(p->value());
         CNC_ENGINE::operation_result_enum result = CNC_ENGINE::operation_controller.add_operation_to_queue(&command);
         if (result == CNC_ENGINE::success)
         {
-          CNC_ENGINE::machine_state.is_active = true;
           request->send(200, "text/plain", "ok");
+          CNC_ENGINE::machine_state.is_active = true;
+          return;
+        }
+        else
+        {
+          request->send(200, "text/plain", String(CNC_ENGINE::operation_result_string[result]));
+          return;
+        }
+      }
+    }
+    request->send(200, "text/plain", "ok");
+  });
+  RFX_Server::server.on("/engine/api", HTTP_GET, [](AsyncWebServerRequest *request) {
+    console.logln("param rx'd: ");
+    int paramsNr = request->params();
+    for (int i = 0; i < paramsNr; i++)
+    {
+      AsyncWebParameter *p = request->getParam(i);
+      console.logln(p->name() + " = " + p->value());
+      if (p->name() == "code")
+      {    console.logln("code rx'd: ");
+        CNC_ENGINE::command_class command = CNC_ENGINE::parse_gcode(p->value());
+        CNC_ENGINE::operation_result_enum result = CNC_ENGINE::operation_controller.add_operation_to_queue(&command);
+        if (result == CNC_ENGINE::success)
+        {
+          request->send(200, "text/plain", "ok");
+          CNC_ENGINE::machine_state.is_active = true;
           return;
         }
         else
@@ -73,15 +109,12 @@ void add_non_standard_endpoints()
     request->send(200, "text/plain", "ok");
   });
 }
-
-
     rfx_queue<command_class> command_buffer;
 
     unsigned long startTime = 0;
     TaskHandle_t taskHandle;
 
     void printData(){
-
         console.log(String(millis()));       
         console.log(String(CNC_ENGINE::machine_state.getVelocity()),10); 
         for(uint8_t i = 0; i < 6;i++){
@@ -91,8 +124,8 @@ void add_non_standard_endpoints()
     }
     uint32_t old_status = 0;
     void _engineLoop(void * parameter){
-        Config::init();
         add_non_standard_endpoints();
+        Config::init();
         init_machine_state();
         step_engine::init();
         console.logln("Axis Count: "+ String(Config::axis_count));
@@ -101,8 +134,6 @@ void add_non_standard_endpoints()
             }
         command_buffer.resize_queue(32);      
         operation_controller.init(128);
-        command_class command = parse_gcode("G1X5F10");
-        operation_controller.add_operation_to_queue(&command);
         //command = parse_gcode("G1Y10F10");
         //operation_controller.add_operation_to_queue(&command);
 
@@ -116,6 +147,7 @@ void add_non_standard_endpoints()
                 operation_class* operation = operation_controller.operation_queue.getHeadItemPtr();
                 if(operation){
                     console.logln(operation->get_log());
+                    //RFX_Server::socketSerialOut(operation->get_log());
                     if(!operation->execute_in_interrupt){
                         if(operation->execute()){
                             operation_controller.operation_queue.dequeue();
@@ -135,15 +167,16 @@ void add_non_standard_endpoints()
                 console.logln();
                 old_status = machine_state.status_bits;
             }
-            vTaskDelay(50);
+          vTaskDelay(100);
         }
     }
     void init(){
+
         // Initiate task on core
         xTaskCreatePinnedToCore(
             _engineLoop, /* Function to implement the task */
             "CNCEngine", /* Name of the task */
-            10000,  /* Stack size in words */
+            20000,  /* Stack size in words */
             NULL,  /* Task input parameter */
             2,  /* Priority of the task */
             &taskHandle,  /* Task handle. */

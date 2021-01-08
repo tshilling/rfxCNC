@@ -38,7 +38,7 @@ function run_after_load() {
     </div>
   </div>
     <div id="server" class="rfx-tab" style="display:none; max-width: 1200px; margin: auto;">
-    <div class="w3-row-padding" style=" margin:auto;">
+    <div class="w3-row-padding" style="margin:auto;">
     <div id="server-network"class="w3-third" style="min-width:350px !important;">
         <div class="rfx-panel" style="margin-bottom:8px">
             <label class="w3-metro-darken" style="height:32px;">                
@@ -168,6 +168,7 @@ function run_after_load() {
     xhr.setRequestHeader("Content-Type", "text/html");
     xhr.send();
   })
+  /*
   document.getElementById('OTA_Execute').addEventListener('click', event => {
     var xhr = new XMLHttpRequest();
     xhr.onload = () => {
@@ -202,12 +203,16 @@ function run_after_load() {
 
     return false;
   })
+  */
+ /*
   document.getElementById('fileinput').addEventListener('change',event=>{
     let file = document.getElementById("fileinput").files[0];
     document.getElementById('server_new_fw_name').innerText = file.name;
     document.getElementById('OTA_Execute').classList.remove('w3-disabled');
   })
+  */
 }
+
 //###### Poll server status and update display #######
 
 function update_server_status(status) {

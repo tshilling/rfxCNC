@@ -4,7 +4,12 @@
 #include <Arduino.h>
 
 class console_class{
+    private:
+    	void (*_writeCallback)(String);
     public:
+    void setCallback(void (*writeCallback)(String)){
+        _writeCallback = writeCallback;
+    }
     enum msgType{
         routine = 0,
         note = 1,

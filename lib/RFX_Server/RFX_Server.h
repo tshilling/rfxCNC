@@ -25,7 +25,8 @@ namespace RFX_Server{
     static String apSsid;
     extern AsyncWebServer server;
     void init();
-    void _serverLoop(void * parameter);
+    void  _serverLoop(void * parameter);
+    void socketSerialOut(String input);
 };
 
 #endif

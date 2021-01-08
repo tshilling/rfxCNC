@@ -36,7 +36,7 @@
                     </div>
                     <div style="border-bottom: 2px solid lightgray;">
                         <label><b>Ping (msec): </b></label>
-                        <label style="float:right"><b id="server_ping"  style="filter: brightness(80%);">NULL</b></label>
+                        <label style="float:right"><b id="server_ping" style="filter: brightness(80%);">NULL</b></label>
                     </div>
                 </div>
             </div>
@@ -72,14 +72,44 @@
 <script>
     function update_server_status(status) {
         let color = "lightCoral";
-        if (status == "ok") {
-            color = "lightGreen"
+        with (document) {
+            if (status == "ok") {
+                with (getElementById("server_ping").classList) {
+                    add("rfx-good-invert")
+                    remove("rfx-caution-invert")
+                    remove("rfx-warning-invert")
+                }
+                with (getElementById("network-label").classList) {
+                    add("rfx-good")
+                    remove("rfx-caution")
+                    remove("rfx-warning")
+                }
+            }
+            else if (status == "caution") {
+                with (getElementById("server_ping").classList) {
+                    remove("rfx-good-invert")
+                    add("rfx-caution-invert")
+                    remove("rfx-warning-invert")
+                }
+                with (getElementById("network-label").classList) {
+                    remove("rfx-good")
+                    add("rfx-caution")
+                    remove("rfx-warning")
+                }
+            }
+            else {
+                with (getElementById("server_ping").classList) {
+                    remove("rfx-good-invert")
+                    remove("rfx-caution-invert")
+                    add("rfx-warning-invert")
+                }
+                with (getElementById("network-label").classList) {
+                    remove("rfx-good")
+                    remove("rfx-caution")
+                    add("rfx-warning")
+                }
+            }
         }
-        if (status == "caution") {
-            color = "Khaki"
-        }
-        document.getElementById("network-label").style.backgroundColor = color
-        document.getElementById("server_ping").style.color = color
     }
     function getServerInfo() {
         var xhr = new XMLHttpRequest();
@@ -87,40 +117,37 @@
         xhr.onload = () => {
             let end_date = new Date();
             let millis = end_date.getTime() - start_date.getTime();
-            let response = JSON.parse(xhr.responseText)
-            document.getElementById("firmware").innerText  = response.firmware;
-            document.getElementById("version").innerText  = response.version;
+            let r = JSON.parse(xhr.responseText)
+            with (document) {
+                getElementById("firmware").innerText = r.firmware;
+                getElementById("version").innerText = r.version;
+                getElementById("server_ip").innerText = r.ip;
+                getElementById("server_name").innerText = r.dns_name;
+                getElementById("server_mode").innerText = r.mode;
+                getElementById("server_ssid").innerText = r.ssid;
+                getElementById("server_ping").innerText = millis;
+                getElementById("up_time").innerText = Math.round(r.up_time / 1000)
+                getElementById("total_bytes").innerText = Math.round(r.total_bytes / 1000)
+                getElementById("used_bytes").innerText = Math.round(r.used_bytes / 1000)
 
-            document.getElementById("server_ip").innerText = response.ip;
-            document.getElementById("server_name").innerText = response.dns_name;
-            document.getElementById("server_mode").innerText = response.mode;
-            document.getElementById("server_ssid").innerText = response.ssid;
-            document.getElementById("server_ping").innerText = millis;
-
-            document.getElementById("up_time").innerText = Math.round(response.up_time / 1000)
-            document.getElementById("total_bytes").innerText = Math.round(response.total_bytes / 1000)
-            document.getElementById("used_bytes").innerText = Math.round(response.used_bytes / 1000)
-
-            let total_heap = response.total_heap;
-            let free_heap = response.free_heap;
-            document.getElementById("server_total_heap").innerText = Math.round(total_heap / 1000);
-            document.getElementById("server_used_heap").innerText = Math.round((total_heap-free_heap) / 1000);
-
-            document.getElementById("server_freq").innerText = response.freq;
-            if (millis < 250)
-            {
-                update_server_status("ok");
-                document.getElementById("network-label").innerText = "Network";
+                let total_heap = r.total_heap;
+                let free_heap = r.free_heap;
+                getElementById("server_total_heap").innerText = Math.round(total_heap / 1000);
+                getElementById("server_used_heap").innerText = Math.round((total_heap - free_heap) / 1000);
+                getElementById("server_freq").innerText = r.freq;
+                if (millis < 250) {
+                    update_server_status("ok");
+                    getElementById("network-label").innerText = "Network";
+                }
+                else if (millis < 750) {
+                    update_server_status("caution");
+                    getElementById("network-label").innerText = "Network";
+                }
+                else {
+                    update_server_status("warning");
+                    getElementById("network-label").innerText = "Network - Slow r (ping)";
+                }
             }
-            else if (millis < 750){
-                update_server_status("caution");
-                document.getElementById("network-label").innerText = "Network";
-            }
-            else{
-                update_server_status("warning");
-                document.getElementById("network-label").innerText = "Network - Slow response (ping)";
-            }
-            
             setTimeout(getServerInfo, 1000);
         };
         xhr.onerror = () => {
@@ -140,6 +167,6 @@
         xhr.open("GET", "/server/status", true);
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.send();
-        }
-        setTimeout(getServerInfo, 1000);
+    }
+    setTimeout(getServerInfo, 1000);
 </script>

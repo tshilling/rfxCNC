@@ -28,6 +28,16 @@
     </div>
   </header>
   <div id="main-view" style="margin-top: 32px; margin-bottom: 52px; width:100%">
+    <div class="rfx-panel" style="margin:48px 8px 0px 8px;">
+      <label>Console</label>
+      <textarea  readonly id="console_view" class="rfx-input" name="w3review" rows="10" cols="50" width="100%" onchange="scroll()" style="background-color: black; color:limegreen; font-size: 1rem;">
+      </textarea>
+      <div>
+      
+      <input id="code" type="text" placeholder="code to send to machine">
+      <button class="rfx-button" id="code_button" onclick="sendcode()">Send</button>  
+      </div>
+    </div>
   </div>
   <footer id="footer_toolbar" class="rfx-footer rfx-bar w3-metro-darken w3-metro-darken">
     <div class="w3-display-container" style="width: 100%;">
@@ -194,3 +204,64 @@
 <script type="module" src="./engine.js"></script>
 <script type="module" src="./server.js"></script>
 <script src="./index.js"></script>
+<script>
+    let ws = new WebSocket("ws://192.168.4.62/ws");
+
+    ws.onopen = function() {             
+      // Web Socket is connected, send data using send()
+      ws.send("Message to send");
+    };
+
+    ws.onmessage = function (evt) { 
+      var received_msg = evt.data;
+        if(received_msg)
+          document.getElementById("console_view").innerHTML += received_msg;
+        let innerText = document.getElementById("console_view").innerHTML;
+        console.log(innerText.length)
+        if(innerText.length > 1000){
+          innerText = innerText.substr(innerText.length-1000);
+          document.getElementById("console_view").innerHTML = innerText;
+        }
+        var textarea = document.getElementById('console_view');
+        textarea.scrollTop = textarea.scrollHeight;
+    };
+
+    ws.onclose = function() { 
+    };
+    ws.onerror = function(evt){
+      console.log("error: "+evt)
+    }
+    function sendcode(){
+      console.log("value: "+document.getElementById("code").value)
+      var xhr = new XMLHttpRequest();
+      function bad_response() {
+
+      }
+      xhr.onload = () => {
+        if (xhr.response === 'ok') {
+          console.log("code recieved")
+        }
+        else {
+          console.log("code bad response")
+        }
+
+      };
+      xhr.onerror = () => {
+        console.log("code error")
+      }
+      xhr.ontimeout = () => {
+        console.log("code timeout")
+      }
+      xhr.timeout = 2000
+      var data = new FormData();
+      data.append('code', document.getElementById("code").value);
+      document.getElementById("code").value="";
+      xhr.open("POST", "http://192.168.4.62/engine/api", true);
+      //xhr.setRequestHeader("Content-Type", "text/html");
+      xhr.send(data);
+    }
+    setInterval(function(){
+      var textarea = document.getElementById('console_view');
+        textarea.scrollTop = textarea.scrollHeight;
+    }, 1000);
+</script>

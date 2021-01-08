@@ -4,6 +4,7 @@
 
 body {
     font-family: Verdana, sans-serif;
+    box-sizing: border-box;
 }
 
 .rfx-caution {
@@ -33,6 +34,7 @@ body {
     border-radius: 4px;
     margin: 8px 0 8px 0;
     box-sizing: border-box;
+    align-items: center;
   }
   
   .rfx-panel+.rfx-panel {
@@ -46,12 +48,16 @@ body {
     padding: 2px 4px 2px 4px;
     font-weight: bold;
     display: flex;
+    box-sizing: inherit;
     align-items: center;
     width: 100%;
   }
   
   .rfx-panel>*:not(first-child) {
     padding: 8px;
+    align-items: center;
+    width:100%;
+    box-sizing: inherit;
   }
 
 input{
@@ -103,4 +109,7 @@ input[type="file"] {
     font-size: 1.2rem;
     width: calc(100%-4px);
     margin-bottom:4px;
+}
+.rfx-info-line{
+  border-bottom: 2px solid lightgray;
 }
