@@ -2,7 +2,7 @@
 #pragma once
 #include "Arduino.h"
 #include "operations.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     class M6:public operation_class{   
         public:         
         M6(){

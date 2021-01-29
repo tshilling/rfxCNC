@@ -1,5 +1,5 @@
 #include "CNCHelpers.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     // "m","cm","mm","ft","in", [from][to]
     const float unit_convert[5][5] = {
         {1.000f, 100.0f, 1000.0f, 3.281f, 39.37f},

@@ -1,6 +1,13 @@
 {
     "machine_name": "RFX Default",
     "machine_units": "mm",
+    "spindle"
+    "estop_pin" : 23,
+    "estop_pin_invert" : false,
+    "feedhold_pin" : 21,
+    "feedhold_pin_invert" : false,
+    "probe_pin" : 12,
+    "probe_pin_invert" : false,
     "axis": [
       {
         "axis_id": "X",
@@ -97,7 +104,8 @@
         "limit_pin_min_invert": true,
         "limit_pin_max": 33,
         "limit_pin_max_invert": true
-      },     {
+      },     
+      {
         "axis_id": "A",
         "follow": "X",
         "is_rotary": false,

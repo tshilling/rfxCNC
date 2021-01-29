@@ -73,6 +73,10 @@ class rfx_queue{
     }
     return true;
   }
+  bool IRAM_ATTR flush(){
+    while(dequeue()){}
+    return true;
+  }
   bool isEmpty(){
     if(count==0)
       return true;

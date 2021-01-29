@@ -7,7 +7,8 @@
 #include "bresenham.h"
 #include <RFX_Console.h>
 
-namespace CNC_ENGINE{
+namespace RFX_CNC{
+    extern String operation_result_description[];
     enum operation_result_enum{
         success = 0,
         zero_length,
@@ -16,17 +17,17 @@ namespace CNC_ENGINE{
         max_velocity_exceeded,
         invalid_operation,
         queue_full,
-        unrecognized_command
+        unrecognized_command,
+        ESTOP
     };
-    extern const char* operation_result_string[];
-
     class operation_class{
         public:
         bool execute_in_interrupt = false;
-        bool is_movement = false;
+        bool is_plannable = false;
         bool is_active = false;
         bool is_complete = false;  
         bool first_pass = true;
+        MACHINE::machine_mode_enum machine_mode = MACHINE::run;
         String comment = "";
 
         // Why are these here you ask?  Unit vector will return all zero for non movement, which will make the junction speed zero
@@ -68,7 +69,7 @@ namespace CNC_ENGINE{
         virtual void set_Vf_squared(float value){
             
         }
-        virtual void set_Vc_squared(){
+        virtual void set_Vc_squared_with_override(){
 
         }
         virtual void set_Vc_squared(float value){
@@ -82,12 +83,9 @@ namespace CNC_ENGINE{
         }
         virtual operation_result_enum init(float parameters[]){
             for(uint8_t i = 0; i < Config::axis_count;i++){
-                absolute_steps[i] = planner_state.absolute_position_steps[i];// parameters[Config::axis[i].id-'A'] * Config::axis[i].stepsPerUnit;
+                absolute_steps[i] = MACHINE::planner_state->absolute_position_steps[i];// parameters[Config::axis[i].id-'A'] * Config::axis[i].stepsPerUnit;
             }
             return success;
-        }
-        virtual operation_result_enum init(float parameters[], uint32_t present_flag){
-            return init(parameters);
         }
         virtual String get_type(){
             return "null";
@@ -102,8 +100,16 @@ namespace CNC_ENGINE{
             return *this;
         }
     };
-    class movement_class : public operation_class{     
+    class movement_class : public operation_class{   
+
         public:
+        struct v_struct{
+            float target = 0;
+            float max = 0;
+        };
+        v_struct V02;
+        v_struct Vt2;
+        v_struct Vf2;
         float    V0_squared = 0;
         float    Vc_squared = 0;
         float    Vf_squared = 0;
@@ -118,7 +124,7 @@ namespace CNC_ENGINE{
 
         bresenham_line_class bresenham;
         movement_class(){   
-            is_movement = true;
+            is_plannable = true;
         }
         float get_V0_squared(){
             return V0_squared;
@@ -138,15 +144,16 @@ namespace CNC_ENGINE{
         void set_Vc_squared(float value){
             Vc_squared = value;            
         }
-        void set_Vc_squared(){
-            Vc_squared = MIN(powf2(target_velocity*machine_state.feed_override),Vmax_squared);
+        void set_Vc_squared_with_override(){
+            Vc_squared = MIN(powf2(target_velocity*MACHINE::feed_override),Vmax_squared);
         }
         float get_dot_product_with_previous_segment(){
             return dot_product_with_previous_segment;
         }
         void clip_velocity_kinematically(direction_enum dir){
-            if(dir == backward)
+            if(dir == backward){
                 V0_squared = MIN(abs(Vf_squared + (2 * max_acceleration * length_in_units)),abs(Vc_squared));
+            }
             if(dir == forward)
                 Vf_squared = MIN(abs(V0_squared + (2 * max_acceleration * length_in_units)),abs(Vc_squared));
         }
@@ -155,7 +162,7 @@ namespace CNC_ENGINE{
             dot_product_with_previous_segment = 0;
             //if(previous_move!=nullptr){
                 for(uint8_t i = 0;i<Config::axis_count;i++){
-                    dot_product_with_previous_segment += planner_state.unit_vector_of_last_move[i]*unit_vector[i];
+                    dot_product_with_previous_segment += MACHINE::planner_state->unit_vector_of_last_move[i]*unit_vector[i];
                 }
                 if(dot_product_with_previous_segment < 0)
                     dot_product_with_previous_segment = 0;
@@ -165,11 +172,11 @@ namespace CNC_ENGINE{
         }
         operation_result_enum compute_max_mechanics(){
             // Find limit feedrate based on configuration
-            Vmax_squared = MAX_FLOAT_VALUE;
-            max_acceleration = MAX_FLOAT_VALUE;
+            Vmax_squared = infinityf();// MAX_FLOAT_VALUE;
+            max_acceleration = infinityf();//MAX_FLOAT_VALUE;
             for(uint8_t i = 0; i < Config::axis_count;i++){
-                float v = Config::axis[i].max_feed_units_per_sec / abs(unit_vector[i]);
-                float a = Config::axis[i].acceleration / abs(unit_vector[i]);
+                float v = Config::axis[i].max_feed_units_per_sec / abs(unit_vector[i]); // Actual max velocity the axis allows
+                float a = Config::axis[i].acceleration / abs(unit_vector[i]);           // Actual max accel the axis allows
                 if(v < Vmax_squared)
                     Vmax_squared = v;
                 if(a < max_acceleration)
@@ -185,7 +192,7 @@ namespace CNC_ENGINE{
                 return -1;
             uint8_t smoothing = 0;
             for(smoothing=0;smoothing<8;smoothing++){
-                // Limit smoothing based on min_usec_between_steps
+                // Limit smoothing based on min_usec_between_steps, this limits it in a way that we can see a feed over ride of 200% (...steps<<1)
                 if(usec>>smoothing < (Config::step_engine_config.min_usec_between_steps<<1))
                     break;
                 // Limit based on largest value storeable by int32
@@ -226,8 +233,7 @@ namespace CNC_ENGINE{
                 return max_velocity_exceeded;
             bresenham.smooth(smoothing);
             operation_result_enum result;
-            if((result = compute_max_mechanics())!=success)
-                return result;         
+            compute_max_mechanics();        
             compute_velocity_components();
             if(acceleration_factor_times_two == 0)
                 return invalid_operation;

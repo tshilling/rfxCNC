@@ -2,7 +2,7 @@
 #pragma once
 #include "Arduino.h"
 #include "operations.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     class M0:public operation_class{   
         public:                
         M0(){
@@ -12,7 +12,7 @@ namespace CNC_ENGINE{
 
         }
         bool execute(){
-            machine_state.is_active = false;
+            MACHINE::is_active = false;
             is_complete = true;
             return is_complete;
         }

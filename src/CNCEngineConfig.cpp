@@ -5,7 +5,7 @@
 #include <ArduinoJson.h>
 #include "CNCHelpers.h"
 
-namespace CNC_ENGINE
+namespace RFX_CNC
 {
     namespace Config
     {
@@ -16,7 +16,41 @@ namespace CNC_ENGINE
         String machine_name = "Default Name";
         u_char axis_count = 0;
         axisStruct axis[axisCountLimit];
+        uint32_t input_debounce_usec = 10000; // TODO Add to config file
+ 
+        int8_t      estop_pin           = 14;
+        bool        estop_pin_invert    = false;
+        int8_t      estop_map           = -1;
 
+        int8_t      probe_pin           = 27;
+        bool        probe_pin_invert    = false;
+        int8_t      probe_map           = -1;
+
+        int8_t get_axis_index_by_id(char id){
+            for(uint8_t i=0;i<axis_count;i++){
+                if(id==axis[i].id)
+                    return i;
+            }
+            return -1;
+        }
+
+        // Takes in a pin number and if inverted.  Returns the index in inputs to which it is mapped
+        std::vector<input_struct> critical_inputs;
+        uint8_t add_critical_input_to_list(int8_t pin, bool invert){
+            if(pin<0)
+                return -1;
+            // Ensure it is unique
+            for(uint8_t i = 0; i < critical_inputs.size();i++){
+                if(critical_inputs[i].pin == pin)
+                    return i;    
+            }
+            input_struct input;
+            input.pin = pin;
+            input.invert = invert;
+            critical_inputs.push_back(input);
+            pinMode(pin, INPUT_PULLUP);
+            return critical_inputs.size()-1;
+        }
         bool init()
         {
             if (!RFX_FILE_SYSTEM::ready)
@@ -45,15 +79,12 @@ namespace CNC_ENGINE
                 if (Config::axis[i].enable_pin >= 0)
                     pinMode(Config::axis[i].enable_pin, OUTPUT);
 
-                if (Config::axis[i].limit_pin_min >= 0)
-                    pinMode(Config::axis[i].limit_pin_min, INPUT);
-
-                if (Config::axis[i].limit_pin_max >= 0)
-                    pinMode(Config::axis[i].limit_pin_max, INPUT);
-
-                if (Config::axis[i].home_pin >= 0)
-                    pinMode(Config::axis[i].home_pin, INPUT);
+                Config::axis[i].limit_min_map = add_critical_input_to_list(Config::axis[i].limit_pin_min, Config::axis[i].limit_pin_min_invert);
+                Config::axis[i].limit_max_map =add_critical_input_to_list(Config::axis[i].limit_pin_max, Config::axis[i].limit_pin_max_invert);
+                Config::axis[i].home_map =add_critical_input_to_list(Config::axis[i].home_pin, Config::axis[i].home_pin_invert);               
             }
+            Config::estop_map = add_critical_input_to_list(Config::estop_pin,Config::estop_pin_invert);
+            Config::probe_map = add_critical_input_to_list(Config::probe_pin,Config::probe_pin_invert);
 
             return RFX_FILE_SYSTEM::ready;
         }

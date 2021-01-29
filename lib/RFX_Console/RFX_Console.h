@@ -25,29 +25,35 @@ class console_class{
     bool newline = true;
     int lineLength = 0;
     bool timestamp = false;
+    String active_msg = "";
     void init(Stream *_stream){
         stream = _stream;
         tabIndex = 0;
     }
-    void print(String msg){
+    void print(){
         if(stream==nullptr)
             return;
-        lineLength +=stream->print(msg);
+        lineLength +=stream->print(active_msg);
+        if(_writeCallback)
+            _writeCallback(active_msg);
+        active_msg = "";
     }
     void write(int i){
         stream->write(i);
     }
-    void println(String msg){
+    void println(){
         if(stream==nullptr)
             return;   
-        stream->println(msg);
-        lineLength = 0;
+        stream->println(active_msg);
+        if(_writeCallback)
+            _writeCallback(active_msg+"\n");
+        active_msg = "";
     }
     void addTabs(){
         if(lineLength==0)
         {
             for(int i = 0; i<tabIndex;i++){
-                lineLength += stream->print("\t");
+                active_msg += '\t';
             }
         }
     }
@@ -60,13 +66,13 @@ class console_class{
         int h = ceil(l / 2.0);
         addTabs();
         for(int i = 0; i < halfLength - h; i++){
-            print("=");
+            active_msg +="=";
         }
-        print(msg);
+        active_msg +=msg;
         for(int i = halfLength -h+l; i < length; i++){
-            print("=");
+            active_msg +="=";
         }
-        println("");
+        println();
         newline = true;
     }
     void bar(char length)
@@ -85,15 +91,15 @@ class console_class{
     }
     void log(String msg, int pos){
         addTabs();
-        for(int i = lineLength;i<pos;i++){
-            print(" ");
+        for(int i = active_msg.length();i<pos;i++){
+            active_msg +=" ";
         }
         log(msg, routine);
     }
     void logln(String msg, int pos){
         addTabs();
-        for(int i = lineLength;i<pos;i++){
-            print(" ");
+        for(int i = active_msg.length();i<pos;i++){
+            active_msg +=" ";
         }
         logln(msg, routine);
     }
@@ -104,36 +110,36 @@ class console_class{
         if(_msgType < logLevel)
             return;
         if(timestamp && msg.length()!=0 && lineLength==0)
-            lineLength += stream->print(String(millis()/1000.0f,4)+":\t");
+            active_msg += String(millis()/1000.0f,4)+":\t";
         addTabs();
         switch(_msgType){
             case routine:
-            
+
                 break;
             case note:
-                print("NOTE: ");
+                active_msg+="NOTE: ";
                 break;
             case caution:
-                print("CAUTION: ");
+                active_msg+="CAUTION: ";
                 break;
             case warning:
-                print("WARNING: ");
+                active_msg+="WARNING: ";
                 break;
             case error:
-                print("ERROR: ");
+                active_msg+="ERROR: ";
                 break;
             default:
 
                 break;
         }
-        print(msg);
+        active_msg += msg;
+        print();
     }
     void logln(String msg, msgType _msgType){
         if(stream==nullptr)
             return;
         log(msg, _msgType);
-        println("");
-        lineLength = 0;
+        println();
     }
     void resetOrigin(){
         lineLength = 0;

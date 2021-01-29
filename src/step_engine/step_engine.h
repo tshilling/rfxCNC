@@ -22,8 +22,8 @@
                                 // ... (We do lose, 247 by int math, but that is the only one out of 250).  This is a good balance.
                                 // This is applied to clock initialization and then again to usec_per_step after every other calculation is performed.  
                                 // Requires those calculations to be floating point 
-namespace CNC_ENGINE{
-    namespace step_engine{            
+namespace RFX_CNC{
+    namespace STEP_ENGINE{            
         extern bool is_active;
         void init();
         extern int usec_in_event;

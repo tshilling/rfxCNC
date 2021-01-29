@@ -5,11 +5,13 @@
 
 #include <Arduino.h>
 #include "config.h"
+#include "parsers/commandParser.h"
 
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     void init(void);
     void _engineLoop(void * parameter);
     void rx_command(String command);
+    void process_command(PARSER::command_struct* commands);
 };
 
 #endif

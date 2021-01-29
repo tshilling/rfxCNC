@@ -1,7 +1,7 @@
 #pragma once
 #include "Arduino.h"
 #include "CNCEngineConfig.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
 class bresenham_line_class{
         public:
         int32_t  delta_steps    [axisCountLimit];

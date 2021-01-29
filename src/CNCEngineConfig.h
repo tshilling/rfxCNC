@@ -22,12 +22,12 @@
 //Pre calculated powers of 2:   0 1 2 3 4  5  6  7   8   9   10   11   12   13   14    15
 const uint16_t powersOfTwo[] = {1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768};
 
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     namespace Config
     {
         //########### Constants ############
         const char axis_default_id[]    = {'X','Y','Z','A','B','C','U','V','W'};
-
+        const char home_order[] = {'Z','Y','X','A','B','C','U','V','W'};
         //########### Step Engine Settings ############
         struct step_engine_struct{
             uint64_t max_usec_between_steps     = 50000;    // Interval shall never be greater than this value for step timer, (200steps/mm => 0.1mm/sec min speed, 20 Hz)
@@ -41,7 +41,24 @@ namespace CNC_ENGINE{
         extern String machine_name;
         extern units_enum machine_units;   
         extern u_char axis_count;    
+        extern uint32_t input_debounce_usec;
+        struct input_struct{
+            int8_t  pin         = -1;
+            bool    invert      = false;
+            int32_t debounce    = 0;
+            bool    state       = 0;
+        };
 
+        extern std::vector<input_struct> critical_inputs;
+
+        extern int8_t      estop_pin;
+        extern bool        estop_pin_invert;
+        extern int8_t      estop_map;
+
+        extern int8_t      probe_pin;
+        extern bool        probe_pin_invert;
+        extern int8_t      probe_map;
+        
         struct axisStruct{
             char        id                      = 'X';      // Symbol used to control
             char        follow                  = 'X';      // Make this axis follow
@@ -66,20 +83,24 @@ namespace CNC_ENGINE{
             float       acceleration            = 20;   // units / sec^2
             
             // Pins
-            int8_t     dir_pin                 = -1;
+            int8_t      dir_pin                 = -1;
             bool        dir_pin_invert          = false;
-            int8_t     step_pin                = -1;
+            int8_t      step_pin                = -1;
             bool        step_pin_invert         = false;
-            int8_t     enable_pin              = -1;
+            int8_t      enable_pin              = -1;
             bool        enable_pin_invert       = false;
 
-            int8_t     limit_pin_min           = -1;
+            int8_t      limit_pin_min           = -1;
             bool        limit_pin_min_invert    = false;
-            int8_t     limit_pin_max           = -1;
+            int8_t      limit_pin_max           = -1;
             bool        limit_pin_max_invert    = false;
-            int8_t     home_pin                = -1;
+            int8_t      home_pin                = -1;
             bool        home_pin_invert         = false;
 
+            int8_t      limit_min_map           = -1;
+            int8_t      limit_max_map           = -1;
+            int8_t      home_map                = -1;
+        
 
             // s_ prefix indicates these should be in steps
             uint16_t    s_maxFeed       = 12000;// steps / sec
@@ -96,6 +117,7 @@ namespace CNC_ENGINE{
         bool readConfigFile();
         bool writeConfigFile();
         bool init();
+        int8_t get_axis_index_by_id(char id);
     }
 };
 

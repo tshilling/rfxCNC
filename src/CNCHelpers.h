@@ -48,7 +48,7 @@
 #define _Y_ 24
 #define _Z_ 25
 
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     float get_length(float vector[], uint8_t count);
     float Q_rsqrt( float number, uint8_t refinement);
     bool unit_vector(float vector_in[], float result_out[], uint8_t count, uint8_t refinement);
@@ -62,10 +62,10 @@ namespace CNC_ENGINE{
     // The smallest float value possible without being zero.
     // Particularlly useful for values where divide by zero could happen
     extern const float SMALLEST_FLOAT;
-    struct keyValuePair{
-        String key;
-        float value;
-    };
+//    struct keyValuePair{
+//        String key;
+//        float value;
+//    };
     enum direction_enum{
         backward = 0,
         forward = 1

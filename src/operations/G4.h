@@ -1,7 +1,7 @@
 #pragma once
 #include "Arduino.h"
 #include "operations.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     class G4:public operation_class{ 
             
         public:

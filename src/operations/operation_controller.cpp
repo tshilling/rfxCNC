@@ -1,4 +1,4 @@
 #include "operation_controller.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     operation_controller_class operation_controller;
 }

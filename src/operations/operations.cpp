@@ -1,13 +1,14 @@
  #include "operations.h"
- namespace CNC_ENGINE{
- const char* operation_result_string[]={
-        "success",
-        "zero length",
-        "zero velocity",
-        "max distance exceeded",
-        "max velocity exceeded",
-        "invalid operation",
-        "queue full",
-        "unrecognized_command"
+ namespace RFX_CNC{
+    String operation_result_description[]={
+        "Success",
+        "Zero length",
+        "Zero velocity",
+        "Max distance exceeded",
+        "Max velocity exceeded",
+        "Invalid operation",
+        "Queue full",
+        "Unrecognized command",
+        "Emergency Stop"
     };
  }

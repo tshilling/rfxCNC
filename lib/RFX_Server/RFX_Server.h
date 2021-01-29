@@ -5,7 +5,8 @@
 
 #include <Arduino.h>
 #include "RFX_File_System.h"  
-#include "ESPAsyncWebServer.h"
+//#include "ESPAsyncWebServer.h"
+#include <WebServer.h>
 
 #define APPASSWORD  "rfxsetup"
 #define APSSID      "RFXSETUP"
@@ -20,13 +21,18 @@
 #define VERSION "0.1.1"
 
 #define ALLOW_CORS
-
 namespace RFX_Server{
     static String apSsid;
-    extern AsyncWebServer server;
+    //extern AsyncWebServer server;
+    extern WebServer server;
     void init();
     void  _serverLoop(void * parameter);
     void socketSerialOut(String input);
+    void tend();
+    void sendCrossOriginHeader();
+    void setCrossOrigin();    
+    extern void (*_wsCallback)(String);
+    void setWebSocketCallback(void (*wsCallback)(String));
 };
 
 #endif

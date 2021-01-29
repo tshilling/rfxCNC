@@ -2,7 +2,6 @@
 #include "Arduino.h"
 #include "CNCEngineConfig.h"
 #include "CNCHelpers.h"
-       
 
 #define _A_ 0
 #define _B_ 1
@@ -31,137 +30,179 @@
 #define _Y_ 24
 #define _Z_ 25
 
-namespace CNC_ENGINE{
-    class machine_state_class{
-        public:
-        enum machine_mode_enum{
-            locked,
+namespace RFX_CNC
+{
+    namespace MACHINE
+    {
+        extern String machine_mode_description[];
+        enum machine_mode_enum
+        {
+            locked = 0,
+            need_homing,
             idle,
-            homing,
-            probing,
-            running
+            run,
+            home,
+            probe
         };
-        machine_mode_enum machine_mode = idle;
+        extern machine_mode_enum machine_mode;
+        extern bool hard_limit_enabled;
+        extern uint16_t home_required;
+        extern bool is_emergency_stop;
+        extern bool is_feedhold;
+        extern bool is_active;
+        extern bool optional_stop;
 
-        float parameter[26] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-        int32_t absolute_position_steps[axisCountLimit];
-        int32_t zero_offset_steps[axisCountLimit];
-        float   unit_vector_of_last_move[axisCountLimit];
+        extern float feed_override;
+        extern bool feed_override_allowed;
+        extern float spindle_override;
 
-        uint8_t tool_index = 0;
-        float   velocity_squared = 0;
+        class machine_state_class
+        {
+        public:
+            uint32_t critical_status_bits;
 
-        bool    is_emergency_stop = false;
-        bool    is_feedhold = false;
-        bool    is_active = false;
-        bool    optional_stop = false;
-        
-        float   feed_override = 1.0f;
-        bool    feed_override_allowed = true;
-        float   spindle_override = 1.0f;
+            float parameter[26] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-        enum motion_mode_enum{
-            G0 = 0,         // Rapid
-            G1 = 1,         // Linear
-            G2 = 2,         // CW Arc
-            G3 = 3,         // CCW Arc
-            G38_2 = 382,    // Probe toward workpiece, stop on contact, signal error if failure
-            G38_3 = 383,    // Probe toward workpiece, stop on contact
-            G38_4 = 384,    // Probe away from workpiece, stop on loss of contact, signal error if failure
-            G38_5 = 385,     // Probe away from workpiece, stop on loss of contact
-            G80 = 80        // Cancel canned cycle
-        };
-        enum plane_select_enum{
-            G17 = 17,
-            G18 = 18,
-            G19 = 19,
-            plane_XY = 17,
-            plane_ZX = 18,
-            plane_YZ = 19
-        };
-        enum feed_rate_mode_enum{
-            G93 = 93,   // Inverse Time Mode
-            G94 = 94,    // Units per minute
-            inverse_time = 93,
-            units_per_minute = 94
-        };
-        enum state_words_enum{
-            off=0,
-            on=1,
-            left,
-            right,
-            top,
-            bottom,
-            CW,
-            CCW,
-            positive,
-            negative,
-            exact,
-            absolute,
-            incremental
-        };
-        enum spindle_state_enum{
-            M3 = 3, // CW
-            M4 = 4, // CCW
-            M5 = 5, // Stop
-            spindle_CW = 3, // CW
-            spindle_CCW = 4, // CCW
-            spindle_off = 5 // Stop
-        };
-        enum coolant_state_enum{
-            M7 = 7, // Coolant Mist
-            M8 = 8, // Coolant Flood
-            M9 = 9,  // Coolant Off
-            cooland_mist = 7,
-            coolant_flood = 9,
-            coolant_off = 9
-        };
-        spindle_state_enum spindle_state;
-        coolant_state_enum coolant_state;
-        struct modal_struct{
-            motion_mode_enum        motion;
-            plane_select_enum       plane;
-            uint8_t                 coordinate_sytem = 2; //mm
-            state_words_enum        distance_mode;
-            state_words_enum        arc_distance_mode;
-            feed_rate_mode_enum     feed_rate_mode;
-            units_enum              units;
-            spindle_state_enum      spindle_state;
-            coolant_state_enum      coolant_state;
-            state_words_enum        cutter_radius_compentation;
-            state_words_enum        cutter_length_compentation;
-            state_words_enum        path_control;
-        }modal;
-        void init(){
-            for(int i = 0; i < Config::axis_count;i++){
-                absolute_position_steps[i] = 0;
-                zero_offset_steps[i] = 0;
-                unit_vector_of_last_move[i] = 0;
+            int32_t absolute_position_steps[axisCountLimit];
+            int32_t zero_offset_steps[axisCountLimit];
+            int32_t get_offset_steps(uint8_t index)
+            {
+                return absolute_position_steps[index] - zero_offset_steps[index];
             }
-            velocity_squared = 0;
-            modal.motion = G0;
-            modal.plane = plane_XY;
-            modal.coordinate_sytem = 0;
-            modal.distance_mode = absolute;
-            modal.arc_distance_mode = absolute;
-            modal.feed_rate_mode = units_per_minute;
-            modal.units = units_mm;
-            modal.spindle_state = spindle_off;
-            modal.coolant_state = coolant_off;
-        }
-        float getVelocity(){
-            float v = Q_rsqrt(velocity_squared,0);
-            if(v==0)
-                return 0;
-            return (1.0f/v);
-        }
-        machine_state_class(){
-            init();
-        }
-        uint32_t status_bits;
-        bool hard_limit_enabled = true;
-    };
-    extern machine_state_class machine_state;
-    extern machine_state_class planner_state;
-    void init_machine_state();
-}
+            float get_position_in_machine_coordinates(uint8_t index)
+            {
+                return ((float)absolute_position_steps[index]) / ((float)Config::axis[index].steps_per_unit);
+            }
+            float get_position_in_coordinates(uint8_t index)
+            {
+                return ((float)get_offset_steps(index)) / ((float)Config::axis[index].steps_per_unit);
+            }
+            int32_t get_absolute_steps_from_coordinates(uint8_t index, float value)
+            {
+                return (value * Config::axis[index].steps_per_unit) + zero_offset_steps[index];
+            }
+            float unit_vector_of_last_move[axisCountLimit];
+
+            uint8_t tool_index = 0;
+            float velocity_squared = 0;
+
+            enum motion_mode_enum
+            {
+                G0 = 0,      // Rapid
+                G1 = 1,      // Linear
+                G2 = 2,      // CW Arc
+                G3 = 3,      // CCW Arc
+                G38_2 = 382, // Probe toward workpiece, stop on contact, signal error if failure
+                G38_3 = 383, // Probe toward workpiece, stop on contact
+                G38_4 = 384, // Probe away from workpiece, stop on loss of contact, signal error if failure
+                G38_5 = 385, // Probe away from workpiece, stop on loss of contact
+                G80 = 80     // Cancel canned cycle
+            };
+            enum plane_select_enum
+            {
+                G17 = 17,
+                G18 = 18,
+                G19 = 19,
+                plane_XY = 17,
+                plane_ZX = 18,
+                plane_YZ = 19
+            };
+            enum feed_rate_mode_enum
+            {
+                G93 = 93, // Inverse Time Mode
+                G94 = 94, // Units per minute
+                inverse_time = 93,
+                units_per_minute = 94
+            };
+            enum state_words_enum
+            {
+                off = 0,
+                on = 1,
+                left,
+                right,
+                top,
+                bottom,
+                CW,
+                CCW,
+                positive,
+                negative,
+                exact,
+                absolute,
+                incremental
+            };
+            enum spindle_state_enum
+            {
+                M3 = 3,          // CW
+                M4 = 4,          // CCW
+                M5 = 5,          // Stop
+                spindle_CW = 3,  // CW
+                spindle_CCW = 4, // CCW
+                spindle_off = 5  // Stop
+            };
+            enum coolant_state_enum
+            {
+                M7 = 7, // Coolant Mist
+                M8 = 8, // Coolant Flood
+                M9 = 9, // Coolant Off
+                cooland_mist = 7,
+                coolant_flood = 9,
+                coolant_off = 9
+            };
+            spindle_state_enum spindle_state;
+            coolant_state_enum coolant_state;
+            struct modal_struct
+            {
+                motion_mode_enum motion;
+                plane_select_enum plane;
+                uint8_t coordinate_sytem = 2; //mm
+                state_words_enum distance_mode;
+                state_words_enum arc_distance_mode;
+                feed_rate_mode_enum feed_rate_mode;
+                units_enum units;
+                spindle_state_enum spindle_state;
+                coolant_state_enum coolant_state;
+                state_words_enum cutter_radius_compentation;
+                state_words_enum cutter_length_compentation;
+                state_words_enum path_control;
+            } modal;
+            void init()
+            {
+                for (int i = 0; i < Config::axis_count; i++)
+                {
+                    absolute_position_steps[i] = 0;
+                    zero_offset_steps[i] = 0;
+                    unit_vector_of_last_move[i] = 0;
+                }
+                critical_status_bits = 0;
+                velocity_squared = 0;
+                modal.motion = G0;
+                modal.plane = plane_XY;
+                modal.coordinate_sytem = 0;
+                modal.distance_mode = absolute;
+                modal.arc_distance_mode = absolute;
+                modal.feed_rate_mode = units_per_minute;
+                modal.units = units_mm;
+                modal.spindle_state = spindle_off;
+                modal.coolant_state = coolant_off;
+            }
+            float getVelocity()
+            {
+                return sqrtf(velocity_squared);//(1.0f / v);
+            }
+            machine_state_class()
+            {
+                init();
+            }
+        };
+        extern machine_state_class *machine_state;
+        extern machine_state_class *planner_state;
+        void init_machine_state();
+        void scan_inputs(unsigned long delta_time);
+        void handle_inputs();
+        bool perform_emergency_stop();
+        bool perform_emergency_stop(String msg);
+        bool perform_unlock();
+        bool perform_cycle_start();
+        bool perform_feed_hold();
+    } // namespace MACHINE
+} // namespace RFX_CNC

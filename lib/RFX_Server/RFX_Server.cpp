@@ -6,39 +6,53 @@
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include <Update.h>
-#include "sections.h"
+//#include "sections.h"
 
 // Import required libraries
 #ifdef ESP32
   #include <WiFi.h>
-  #include <AsyncTCP.h>
 #else
   #include <ESP8266WiFi.h>
-  #include <ESPAsyncTCP.h>
 #endif
 
 /*
 ################ Server - Targetted to run on Core 1, same as setup and loop ################### 
 */
-
+// New //
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#define USE_SERIAL Serial
+/////////
 namespace RFX_Server{
+    WebServer server(80);
+    WebSocketsServer webSocket = WebSocketsServer(81);
+    void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
 
-    // https://tomeko.net/online_tools/cpp_text_escape.php?lang=en
-
-    AsyncWebServer server(80);
-    AsyncWebSocket ws("/ws");
-    
-    AsyncWebSocketClient * globalClient = NULL;
-    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
-        if(type == WS_EVT_CONNECT){
-            Serial.println("Websocket client connection received");
-            client->text("Hello from ESP32 Server");
-            globalClient = client;
-        } else if(type == WS_EVT_DISCONNECT){
-            Serial.println("Client disconnected");
-            globalClient = NULL;
-        }
+    switch(type) {
+        case WStype_DISCONNECTED:
+            console.logln("["+String(num)+"] Disconnected");
+            break;
+        case WStype_CONNECTED:
+            {
+                IPAddress ip = webSocket.remoteIP(num);
+				webSocket.sendTXT(num, "\nConnected to Server Console...\n");
+                console.logln(String(num)+": Connected from "+String(ip[0])+"."+String(ip[1])+"."+String(ip[2])+"."+String(ip[3]));
+            }
+            break;
+        case WStype_TEXT:
+            
+            if(_wsCallback)
+                _wsCallback(String((const char*)payload));
+            break;
+        case WStype_BIN:
+            console.logln("["+String(num)+"] get binary length: " + String(length));
+            break;
+        default:
+            break;
     }
+
+}
     bool restart_requested = false;
     struct configStruct{
         String SSID= DEFAULT_SSID;
@@ -62,6 +76,7 @@ namespace RFX_Server{
         EEPROM.writeString(i,config.user_password);
         i+=config.user_password.length()+1;
         console.logln("done");
+        EEPROM.commit();
         return true;
     }
     bool read_config(){
@@ -84,71 +99,125 @@ namespace RFX_Server{
         console.logln("done");
         return true;
     }
+    
+    String getContentType(String filename) {
+        if (server.hasArg("download")) {
+            return "application/octet-stream";
+        } else if (filename.endsWith(".htm")) {
+            return "text/html";
+        } else if (filename.endsWith(".html")) {
+            return "text/html";
+        } else if (filename.endsWith(".css")) {
+            return "text/css";
+        } else if (filename.endsWith(".js")) {
+            return "application/javascript";
+        } else if (filename.endsWith(".png")) {
+            return "image/png";
+        } else if (filename.endsWith(".gif")) {
+            return "image/gif";
+        } else if (filename.endsWith(".jpg")) {
+            return "image/jpeg";
+        } else if (filename.endsWith(".ico")) {
+            return "image/x-icon";
+        } else if (filename.endsWith(".xml")) {
+            return "text/xml";
+        } else if (filename.endsWith(".pdf")) {
+            return "application/x-pdf";
+        } else if (filename.endsWith(".zip")) {
+            return "application/x-zip";
+        } else if (filename.endsWith(".gz")) {
+            return "application/x-gzip";
+        } else if (filename.endsWith(".json")) {
+            return "application/json";
+        }
+        
+        return "text/plain";
+    }
+
+    bool exists(String path){
+            bool yes = false;
+            File file = RFX_FILE_SYSTEM::fileSystem.open(path, "r");
+            if(!file.isDirectory()){
+                yes = true;
+            }
+            file.close();
+            return yes;
+    }
+    bool handleFileRead(String path) {
+        String contentType = getContentType(path);
+        String pathWithGz = path + ".gz";
+        if (exists(pathWithGz) || exists(path)) {
+            if (exists(pathWithGz)) {
+            path += ".gz";
+            }
+            File file = RFX_FILE_SYSTEM::fileSystem.open(path, "r");
+            server.streamFile(file, contentType);
+            file.close();
+            return true;
+        }
+        else
+        {
+            server.send(404, "text/plain", "FileNotFound");
+        }
+        return false;
+    }
+    
+    void sendCrossOriginHeader(){
+        //Serial.println(F("sendCORSHeader"));
+        //server.sendHeader("Access-Control-Allow-Origin","*");
+
+
+        server.sendHeader(F("Access-Control-Max-Age"), F("600"));
+        server.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
+        server.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
+        server.send(204);
+    }
+    void setCrossOrigin(){
+        //server.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
+        //server.sendHeader(F("Access-Control-Max-Age"), F("600"));
+        //server.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
+        //server.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
+    };
+    
+    String used_sketch_space;
+    String total_sketch_space;
+
     void add_standard_endpoints(){
-        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-            if(!RFX_FILE_SYSTEM::ready){ // If filesystem not mounted
-                String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
-                connect += index_html;
-                request->send(200,"text/html",connect);
-                return;
-            }
-            if(!RFX_FILE_SYSTEM::fileSystem.exists("/index.html")){ // If an index.html doesn't exist
-                String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
-                connect += index_html;
-                request->send(200,"text/html",connect);
-                return;
-            }
-            request->send(RFX_FILE_SYSTEM::fileSystem,"/index.html","text/html");
-        }); 
-        server.on("/default", HTTP_GET, [](AsyncWebServerRequest *request){
-            String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
-            connect += index_html;
-            request->send(200,"text/html",connect);
-        }); 
-        server.on("/default.html", HTTP_GET, [](AsyncWebServerRequest *request){
-            String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
-            connect += index_html;
-            request->send(200,"text/html",connect);
-        }); 
-        server.on("/connect", HTTP_GET, [](AsyncWebServerRequest *request){
+        
+        used_sketch_space = String(ESP.getSketchSize()/1000);
+        total_sketch_space = String((ESP.getSketchSize()+ESP.getFreeSketchSpace())/1000);
+
+        server.on("/", [](){
+            setCrossOrigin();
+            handleFileRead("/index.html");
+        });
+        /*
+        server.on("/update", HTTP_GET, [](){
+            setCrossOrigin();
+            String result = head_html;// template_start_head + template_style + template_end_head + template_default;
+            result += update_html;
+            server.send(200, "text/html", result);
+        });
+        server.on("/connect", HTTP_GET, [](){
+            setCrossOrigin();
             String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
             connect += connect_html;
-            request->send(200,"text/html",connect);
+            server.send(200,"text/html",connect);
         }); 
-        server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request){
+        server.on("/stats", HTTP_GET, [](){
+            setCrossOrigin();
             String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
             connect += stats_html;
-            request->send(200,"text/html",connect);
-        }); 
-        server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
-            if(!request->authenticate(config.username.c_str() ,config.user_password.c_str()))
-                return request->requestAuthentication();
-            String connect = head_html;// template_start_head + template_style + template_end_head + template_default;
-            connect += update_html;
-            request->send(200,"text/html",connect);
-        }); 
-        server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest *request){
-            request->send(200,"text/css",default_css);
-        }); 
-        server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
-            request->send(200,"image/png",favicon);
-            //request->send(RFX_FILE_SYSTEM::fileSystem,"/favicon.png","image/png");
-        });  
-        //dealing with zipped file
-        /*
-        server.on("/bootstrap.css", HTTP_GET, [](AsyncWebServerRequest *request){
-            AsyncWebServerResponse *response = request->beginResponse(RFX_FILE_SYSTEM::fileSystem,"/public/bootstrap.min.css.gz","text/css", false);
-            response->addHeader("Content-Encoding", "gzip");
-            request->send(response);
-        });   */
-        server.onNotFound([](AsyncWebServerRequest *request) {
-            if (request->method() == HTTP_OPTIONS) {
-                request->send(200); // Removing this breaks Cors support.... don't know why
-            } else {
-                request->send(404);
-            }
+            server.send(200,"text/html",connect);
+        }); */
+        server.on("/server/ping",HTTP_OPTIONS, sendCrossOriginHeader);
+        server.on("/server/ping", HTTP_GET,[](){
+            server.send(200, "text/plain", "ok");
         });
-        server.on("/server/status", HTTP_GET,[](AsyncWebServerRequest *request){
+        server.on("/server/status",HTTP_OPTIONS, sendCrossOriginHeader);
+        server.on("/server/status", HTTP_GET,[](){
+            setCrossOrigin();
+            //server.sendHeader("Access-Control-Allow-Origin","*");
             StaticJsonDocument<512> doc;
             doc["ip"] = WiFi.localIP().toString();
             doc["dns_name"] = config.dns_name;
@@ -159,9 +228,16 @@ namespace RFX_Server{
                 doc["mode"] = "Station";
             if(WiFi.getMode()==WIFI_MODE_APSTA)
                 doc["mode"] = "Access Point and Station";
-                
-            doc["free_heap"] = String(ESP.getFreeHeap());// esp_get_free_heap_size();
-            doc["total_heap"] = String(ESP.getHeapSize());
+            
+            doc["used_heap"] = String((ESP.getHeapSize()-ESP.getFreeHeap())/1000);// esp_get_free_heap_size();
+            doc["total_heap"] = String(ESP.getHeapSize()/1000);
+            
+            doc["used_psram"] = String((ESP.getPsramSize()-ESP.getFreePsram())/1000);
+            doc["total_psram"] = String((ESP.getPsramSize())/1000);
+            
+            doc["used_sketch_space"] = used_sketch_space;
+            doc["total_sketch_space"] = total_sketch_space;
+
             esp_chip_info_t info;
             esp_chip_info(&info);
             doc["cores"] = info.cores;
@@ -169,22 +245,23 @@ namespace RFX_Server{
                 doc["model"] = "ESP32";
             doc["revision"] = info.revision;
             doc["freq"] = getCpuFrequencyMhz();
-            doc["up_time"] = millis();
-            doc["total_bytes"] = String(SPIFFS.totalBytes());
-            doc["used_bytes"] = String(SPIFFS.usedBytes());
+            doc["up_time"] = String(millis()/1000);
+            doc["total_kbytes"] = String(SPIFFS.totalBytes()/1000);
+            doc["used_kbytes"] = String(SPIFFS.usedBytes()/1000);
             doc["version"] = String(VERSION);
             doc["firmware"] = String(FIRMWARE);
             String output = "";
             serializeJson(doc, output);
-            request->send(200, "application/json", output);
-        });
-        server.on("/server/settings",HTTP_POST,[](AsyncWebServerRequest *request){
-            request->send(200, "text/plain", "ok");
-        },NULL,[](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-            if(!request->authenticate(config.username.c_str() ,config.user_password.c_str()))
-                return request->requestAuthentication();
+            server.send(200, "application/json", output);
+        });       
+        
+        server.on("/server/settings",HTTP_OPTIONS, sendCrossOriginHeader);
+        server.on("/server/settings",HTTP_POST,[](){
+            setCrossOrigin();
+            server.send(200, "text/plain", "ok");
+            String postBody = server.arg("plain");
             StaticJsonDocument<512> doc;
-            console.logln(deserializeJson(doc, data).c_str());
+            console.logln(deserializeJson(doc, postBody).c_str());
 
             if(!doc["ssid"].isNull()){
                  String value = String((const char*)doc["ssid"]);
@@ -203,81 +280,65 @@ namespace RFX_Server{
             }
             write_config();
         });
-        server.on("/server/restart", HTTP_GET,[](AsyncWebServerRequest *request){
-            if(!request->authenticate(config.username.c_str() ,config.user_password.c_str()))
-                return request->requestAuthentication();
+
+        server.on("/update",HTTP_OPTIONS, sendCrossOriginHeader);
+        server.on("/update", HTTP_POST, []()        {
+            setCrossOrigin();
+            server.sendHeader("Connection", "close");
+            if(!Update.hasError()){
+                server.send(200, "text/plain", "ok");
+                delay(1000);
+                ESP.restart();
+            }
+            else{
+                server.send(200, "text/plain", "fail");
+            }
+            }, []() {
+            HTTPUpload& upload = server.upload();
+            if (upload.status == UPLOAD_FILE_START) {
+                Serial.setDebugOutput(true);
+                Serial.printf("Update: %s\n", upload.filename.c_str());
+                if (!Update.begin()) { //start with max available size
+                Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_WRITE) {
+                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_END) {
+                if (Update.end(true)) { //true to set the size to the current progress
+                Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                } else {
+                Update.printError(Serial);
+                }
+                Serial.setDebugOutput(false);
+            } else {
+                Serial.printf("Update Failed Unexpectedly (likely broken connection): status=%d\n", upload.status);
+            }
+            });
+        server.on("/favicon.ico", HTTP_GET,[](){
+            setCrossOrigin();
+            handleFileRead("/favicon.png");
+            //server.send(200,"image/png",favicon);
+            //request->send(RFX_FILE_SYSTEM::fileSystem,"/favicon.png","image/png");
+        }); 
+
+        server.onNotFound([]() {
+            setCrossOrigin();
+            //if (!handleFileRead(server.uri())) {
+                //setCrossOrigin();
+                server.send(404, "text/plain", "FileNotFound");
+            //}
+        });
+        server.serveStatic("/", RFX_FILE_SYSTEM::fileSystem, "/","max-age=31536000");
+        server.on("/server/restart", HTTP_GET,[](){
+            setCrossOrigin();
             console.logln("Restart received...");
-            
-            //#ifdef ESP32
-            //    restart_requested = true;
-            //#else
-            //#endif
-            request->send(200, "text/html", "ok");
+            server.send(200, "text/html", "ok");
             delay(500);
             ESP.restart();
-        });        
-        server.on("/fs/internal", HTTP_GET,[](AsyncWebServerRequest *request){
-            int paramsNr = request->params();
-            Serial.println(paramsNr);
-            DynamicJsonDocument doc(2048);
-            //StaticJsonDocument<4096> doc;
-            doc["total_bytes"] = String(SPIFFS.totalBytes());
-            doc["used_bytes"] = String(SPIFFS.usedBytes());
-            JsonArray filelist = doc.createNestedArray("files");
-            File root = SPIFFS.open("/public");
-            File file = root.openNextFile();
-            while(file){
-                JsonObject jsonFile = filelist.createNestedObject();
-                jsonFile["name"] = String(file.name());
-                jsonFile["size"] = file.size();
-                jsonFile["is_dir"] = file.isDirectory();
-                file = root.openNextFile();
-            }
-            String output = "";
-            serializeJsonPretty(doc, output);
-            request->send(200, "application/json", output);
-        });
-        
-        server.serveStatic("/",RFX_FILE_SYSTEM::fileSystem,"/public");
+        });  
 
-        /*handling uploading firmware file */
-        server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
-            // the request handler is triggered after the upload has finished... 
-            AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError())?"fail":"ok");
-            request->send(response);
-            restart_requested = true;  // Tell the main loop to restart the ESP
-
-        },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-            //Upload handler chunks in data
-
-            if(!index){ // if index == 0 then this is the first frame of data
-                console.logln("Firmware update started ("+filename+")...");
-                
-                // calculate sketch space required for the update
-                uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-                if(!Update.begin(maxSketchSpace)){//start with max available size
-                    Update.printError(*console.stream);
-                }
-            }
-            //Write chunked data to the free sketch space
-            if(Update.write(data, len) != len){
-                    Update.printError(*console.stream);
-            }
-            if(final){ // if the final flag is set then this is the last frame of data
-                if(Update.end(true)){ //true to set the size to the current progress
-                    console.logln("Success, rebooting...");
-                } else {
-                    Update.printError(*console.stream);
-                }
-            }
-        });
-        server.on("/server/login", HTTP_GET,[](AsyncWebServerRequest *request){
-            console.logln("WTF: ");
-            console.logln(request->client()->remoteIP().toString());
-
-            request->send(200, "text/plain", "ok");
-        });
-    
     }
     bool try_to_connect_to_station(){
         // Try to connect to exisiting network
@@ -336,24 +397,13 @@ namespace RFX_Server{
         }
         return try_to_establish_access_point();
     }
-     
-    String processor(const String& var){
-        /*
-        if(var == "SSID")
-            return config.SSID;
-        */
-        return String();
-    }
 
     void init_server(){       
-        
         add_standard_endpoints();
-        // Handle Websocket
-        ws.onEvent(onWsEvent);
-        server.addHandler(&ws);
         #ifdef ALLOW_CORS
-            DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-            DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
+            server.enableCORS(true);
+            //DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+            //DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
         #endif
         server.begin();
     }
@@ -364,29 +414,53 @@ namespace RFX_Server{
         delay(100);
     }
     
-    //
-    void server_loop(void * parameter){
-        long previous_time = millis();
+
+    long previous_time = millis();
+    void tend(){
+        server.handleClient();
+        //webSocket.loop();
+                
+        if(restart_requested){
+            ESP.restart();
+        }  
+        if(millis()-previous_time > 1000){
+            previous_time = millis();
+        }
+    }
+    void websocket_loop(void * parameter){
         for(;;) {
+            webSocket.loop();
+            vTaskDelay(10);  // needed to keep watchdog timer happy
+        }
+    }
+    void server_loop(void * parameter){
+        for(;;) {
+            //tend();
+            server.handleClient();
+                    
             if(restart_requested){
                 ESP.restart();
             }  
             if(millis()-previous_time > 1000){
                 previous_time = millis();
-                ws.cleanupClients();
+                //console.log(".");
             }
-            vTaskDelay(10);  // needed to keep watchdog timer happy
+            vTaskDelay(1);  // needed to keep watchdog timer happy
         }
     }
 
     TaskHandle_t taskHandle;
+    TaskHandle_t taskHandleWs;
     void socketSerialOut(String input){
-        if(globalClient != NULL && globalClient->status() == WS_CONNECTED){
-            globalClient->text(input);
-        }
+        webSocket.broadcastTXT(input.c_str(),input.length());
     }
-    void init(){  
-        //console.setCallback(socketSerialOut);
+    
+    void (*_wsCallback)(String);
+    void setWebSocketCallback(void (*wsCallback)(String)){
+        _wsCallback = wsCallback;
+    }
+   void init(){  
+        console.setCallback(socketSerialOut);
         // Append chip ID to Defined apSsid
         // NOTE: As of writting, ESP32 does not have a chipID like the esp8266.  Instead we have to use the mac address
         uint8_t sta_mac[6];
@@ -398,7 +472,11 @@ namespace RFX_Server{
         init_wifi();
         init_server();
 
+        webSocket.begin();
+        webSocket.onEvent(webSocketEvent);
+        
         #ifdef ESP32
+            disableCore1WDT();
             xTaskCreatePinnedToCore(
                 server_loop,    // Function to implement the task
                 "Server",       // Name of the task
@@ -406,9 +484,17 @@ namespace RFX_Server{
                 NULL,           // Task input parameter
                 1,              // Priority of the task
                 &taskHandle,    // Task handle.
-                0);             // Core where the task should run
+                1);             // Core where the task should run
+            xTaskCreatePinnedToCore(
+                websocket_loop,    // Function to implement the task
+                "Websocket",       // Name of the task
+                20000,          // Stack size in words
+                NULL,           // Task input parameter
+                1,              // Priority of the task
+                &taskHandleWs,    // Task handle.
+                1);             // Core where the task should run
         #endif
-
+        
     }
 };
 

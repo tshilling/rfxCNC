@@ -2,17 +2,23 @@
 #pragma once
 #include "Arduino.h"
 #include "operationS.h"
-namespace CNC_ENGINE{
+namespace RFX_CNC{
     class M5:public operation_class{   
         public:         
         M5(){
+            execute_in_interrupt = false;
+            is_plannable = false;
 
         }
         ~M5(){
 
         }
+        bool execute(){
+            MACHINE::machine_state->spindle_state = MACHINE::machine_state_class::spindle_off;
+            return true;
+        }
         String get_type(){
-            return "M0";
+            return "M5";
         }
         String get_log(){
             return "Spindle Stop";

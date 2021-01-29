@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>RFX CONTROL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="styles.css"> <!-- custom css styling-->
+</head>
+
+<body style="height: 100%;">
+  <div class="rfx-modal" style="display:none">
+    <div class="rfx-modal-content rfx-panel">
+      <div id="modal-header" class="dark-gray">
+        <Label> Hello Modal</Label>
+        <div class="rfx-clickable rfx-display-right" onclick="this.closest('.rfx-modal').style.display='none'">&times;
+        </div>
+      </div>
+      <div id="modal-body">
+        <span>&#128241;</span>
+        <span>&#128331;</span>
+        <span>&#128246;</span>
+      </div>
+    </div>
+  </div>
+
+  <!--Header #########################################################################################-->
+  <header id="header-toolbar" class="dark-gray">
+    <div id="header-left" class="rfx-display-left">
+      <a href="#dashboard" style="text-decoration: none" ;>
+        <!--############## RFX Logo ############-->
+        <div class="rfx-clickable dark-gray" style="padding: 0 10px 0 10px;">
+          <b>&#9736;</b>
+          <label style="font-size: 0.75rem; transform: translateY(5px);">&fnof;x</label>
+        </div>
+        <!--####################################-->
+      </a>
+    </div>
+    <div id="header-middle" class="rfx-display-middle"></div>
+    <div id="header-right" class="rfx-display-right">
+      <button class="rfx-clickable dark-gray" style="padding: 0 10px 0 10px;">&#9881;</button>
+      <button class="rfx-clickable dark-gray" style="padding: 0 10px 0 10px;">&#9776;</button>
+    </div>
+  </header>
+
+  <!--Main View #####################################################################################-->
+  <div id="main-view" style="padding: 8px; margin-top:36px">
+
+  </div>
+
+  <footer id="footer-toolbar" class="dark-gray">
+    <div style="width: 100%;">
+      <div class="rfx-display-left"></div>
+      <div class="rfx-display-middle">&copy ReplicantFX 2020</div>
+      <div class="rfx-display-right"></div>
+    </div>
+  </footer>
+</body>
+
+<!-- ##################################################################### index.js ##############################################################-->
+<script>
+  function update_tab() {
+    let tab = window.location.hash.substring(1);
+    var i;
+    var x = document.getElementsByClassName("rfx-tab");
+
+    // Scan all elements with class name "rfx-tab", set their style to none (invisible) until the name matches the hash, set that one to visible.
+    // If hash length is zero (none given) show dashboard
+
+    for (i = 0; i < x.length; i++) {
+      x[i].style.display = "none"
+      if (x[i].id === tab){
+        document.getElementById(tab).style.display = "block"
+      }
+    }
+    if (tab.length == 0) {
+      if (document.getElementById("dashboard"))
+        document.getElementById("dashboard").style.display = "block"
+    }
+  }
+  function index_on_load() {
+    update_tab();
+  }
+  window.addEventListener('load', index_on_load, false);
+  window.addEventListener('hashchange', update_tab);
+</script>
+
+<script type="module" src="./dashboard.js"></script>
+
+
+
+
+
