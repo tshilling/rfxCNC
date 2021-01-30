@@ -33,6 +33,9 @@ class console_class{
     void print(){
         if(stream==nullptr)
             return;
+        if(timestamp && lineLength==0)
+            active_msg = String(millis()/1000.0f,4)+" "+active_msg;
+
         lineLength +=stream->print(active_msg);
         if(_writeCallback)
             _writeCallback(active_msg);
@@ -44,10 +47,13 @@ class console_class{
     void println(){
         if(stream==nullptr)
             return;   
+        if(timestamp && lineLength==0)
+            active_msg = String(millis()/1000.0f,4)+" "+active_msg;
         stream->println(active_msg);
         if(_writeCallback)
             _writeCallback(active_msg+"\n");
         active_msg = "";
+        lineLength = 0;
     }
     void addTabs(){
         if(lineLength==0)
@@ -109,8 +115,6 @@ class console_class{
         // Used to filter out only the most important things based on user preference
         if(_msgType < logLevel)
             return;
-        if(timestamp && msg.length()!=0 && lineLength==0)
-            active_msg += String(millis()/1000.0f,4)+":\t";
         addTabs();
         switch(_msgType){
             case routine:

@@ -17,6 +17,7 @@ namespace RFX_CNC{
             if(is_complete)
                 return is_complete;  
             if(first_pass){
+                copy_parameters_out();
                 last_time = millis();
                 first_pass = false;
             }
@@ -32,8 +33,8 @@ namespace RFX_CNC{
             last_time += delta;
             return is_complete;
         }
-        operation_result_enum init(float parameters[]){
-            operation_class::init(parameters);
+        operation_result_enum init(float _parameters[]){
+            operation_class::init(_parameters);
             msec_to_wait = parameters[_P_];
             return success;
         }

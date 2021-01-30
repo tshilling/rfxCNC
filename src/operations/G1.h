@@ -19,10 +19,7 @@ namespace RFX_CNC{
 
         }
         String get_log(){
-            String result = "G1- "+String(STEP_ENGINE::usec_in_event)+" (usec)\t"+String(MACHINE::machine_state->getVelocity())+"units/sec"+"\tcoord(units):";
-            for(int i = 0; i < Config::axis_count;i++){
-                result += "\t"+String(((float)MACHINE::machine_state->absolute_position_steps[i])/((float)Config::axis[i].steps_per_unit));
-            }
+            String result = MACHINE::get_state_log("G1");
             return result;
         }
         String get_type(){
@@ -32,15 +29,16 @@ namespace RFX_CNC{
         public:
         long usec_in_event = 0;
         
-        operation_result_enum init(float parameters[], uint32_t present_flag){
-            return init(parameters);
+        operation_result_enum init(float _parameters[], uint32_t present_flag){
+            return init(_parameters);
         }
-        operation_result_enum init(float parameters[]){
+        operation_result_enum init(float _parameters[]){      
+            copy_parameters_in(_parameters);
             for(uint8_t i = 0; i < Config::axis_count;i++){
                 absolute_steps[i] = MACHINE::planner_state->get_absolute_steps_from_coordinates(i, parameters[Config::axis[i].id-'A']);
             }
             target_velocity = parameters[_F_];
-
+            
             int32_t* previous_move_absolute_steps = &MACHINE::planner_state->absolute_position_steps[0];
             for(uint8_t i = 0; i < Config::axis_count;i++){
                 delta_steps[i] = absolute_steps[i] - previous_move_absolute_steps[i];

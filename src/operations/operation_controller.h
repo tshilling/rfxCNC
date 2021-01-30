@@ -110,54 +110,31 @@ namespace RFX_CNC
             }
             return nullptr;
         }
-        void plan(bool update_all)
+        // Execution of 'the plan' occurs in ste_engine.cpp.  There we use Vf, Vc and Vmax
+        void plan()
         {
             rfx_queue<operation_class>::Node *node = operation_queue.getTailPtr();
             if (node == nullptr)
                 return;
-            // There are two different modes of planning, ALL, and optimized
-            operation_class *operation = node->item;
             if (node->item == nullptr)
                 return;
-            operation->set_Vf_squared(0);
-            while (1)
+            float Vxt = 0;
+            float Vxm = 0;
+            while (node->item->is_plannable)
             {
-                if (operation->is_plannable)
-                {
-                    operation->set_Vc_squared_with_override();
-                    operation->clip_velocity_kinematically(backward);
-                }
-                else
-                {
-                    if (!update_all)
-                        break;
-                }
+                movement_class* move = static_cast<movement_class *>(node->item);
+                move->Vf2.target = Vxt;
+                move->Vf2.max = Vxm;
+
+                Vxt = move->dot_product_with_previous_segment  * MIN(abs(move->Vf2.target + (2 * move->max_acceleration * move->length_in_units)),abs(move->Vt2.target));
+                Vxm = move->dot_product_with_previous_segment  * MIN(abs(move->Vf2.max + (2 * move->max_acceleration * move->length_in_units)),abs(move->Vt2.max));
+            
                 if (!node->previous)
                     break;
-
-                float V = operation->get_V0_squared() * operation->get_dot_product_with_previous_segment();
-                node->previous->item->set_Vf_squared(V);
-                operation->set_V0_squared(V);
-
-                operation = node->previous->item;
                 node = node->previous;
             }
-            operation->set_V0_squared(0);
-            while (1)
-            {
-                operation->clip_velocity_kinematically(forward);
-                if (!node->next)
-                    break;
-                operation_class *next = node->next->item;
-                float V = operation->get_Vf_squared() * next->get_dot_product_with_previous_segment();
-                V = MIN(MIN(V, next->get_V0_squared()), operation->get_Vf_squared());
-                next->set_V0_squared(V);
-                operation->set_Vf_squared(V);
-                operation = next;
-                node = node->next;
-            }
-            operation->set_Vf_squared(0);
         }
+
         operation_result_enum add_operation_to_queue(operation_class *operation)
         {
             if(MACHINE::is_emergency_stop)
@@ -174,12 +151,11 @@ namespace RFX_CNC
                 movement_class *move = static_cast<movement_class *>(operation);
                 for (uint8_t i = 0; i < Config::axis_count; i++)
                 {
-                    //queue_state.position_steps[i] = move->absolute_steps[i];
                     MACHINE::planner_state->unit_vector_of_last_move[i] = move->unit_vector[i];
                     MACHINE::planner_state->absolute_position_steps[i] += move->delta_steps[i];
                 }
+                plan();
             }
-            plan(false);
             return success;
         }
         /*
@@ -429,16 +405,19 @@ namespace RFX_CNC
                     if (pair.value == 3)
                     {
                         operation_class *operation = new M3;
+                        operation->init(sticky_parameters);
                         operation_queue.enqueue(operation);
                     }
                     if (pair.value == 4)
                     {
                         operation_class *operation = new M4;
+                        operation->init(sticky_parameters);
                         operation_queue.enqueue(operation);
                     }
                     if (pair.value == 5)
                     {
                         operation_class *operation = new M5;
+                        operation->init(sticky_parameters);
                         operation_queue.enqueue(operation);
                     }
                 }
@@ -571,8 +550,6 @@ namespace RFX_CNC
                     }
                 }
             }
-
-            plan(false);
             return result;
         }
     };

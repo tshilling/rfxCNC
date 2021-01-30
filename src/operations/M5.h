@@ -14,6 +14,7 @@ namespace RFX_CNC{
 
         }
         bool execute(){
+            copy_parameters_out();
             MACHINE::machine_state->spindle_state = MACHINE::machine_state_class::spindle_off;
             return true;
         }

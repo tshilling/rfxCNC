@@ -1,4 +1,4 @@
-//Spindle On (Clockwise)
+//Coolant Mist
 #pragma once
 #include "Arduino.h"
 #include "operations.h"

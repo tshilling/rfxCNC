@@ -2,7 +2,6 @@
 #include "Arduino.h"
 #include "../state/machineState.h"
 #include "../CNCEngineConfig.h"
-//#include "operation_controller.h"
 #include "../CNCHelpers.h"
 #include "bresenham.h"
 #include <RFX_Console.h>
@@ -22,6 +21,7 @@ namespace RFX_CNC{
     };
     class operation_class{
         public:
+        float parameters[26];
         bool execute_in_interrupt = false;
         bool is_plannable = false;
         bool is_active = false;
@@ -35,14 +35,22 @@ namespace RFX_CNC{
         int32_t absolute_steps[axisCountLimit];
         int32_t delta_steps[axisCountLimit];
         float unit_vector[axisCountLimit];
-
+        void copy_parameters_out(){
+            for(uint8_t i = 0; i < 26;i++){
+                if(!isnan(parameters[i]) && !isinf(parameters[i]))
+                    MACHINE::machine_state->parameter[i] = parameters[i]; 
+            }
+        }
+        void copy_parameters_in(float _parameters[]){      
+            for(uint8_t i = 0; i < 26;i++){
+                parameters[i] = _parameters[i];
+            }
+        }
         virtual bool execute(){
+            copy_parameters_out();
             first_pass = false;
             is_complete = true;
             return is_complete;
-        }
-        virtual float my_test(){
-            return 1.0f;
         }
         operation_class(){
             for(uint8_t i = 0; i < Config::axis_count;i++){
@@ -54,37 +62,12 @@ namespace RFX_CNC{
         virtual ~operation_class(){
 
         }
-        virtual float get_V0_squared(){
-            return 0;
-        }
-        virtual float get_Vf_squared(){
-            return 0;
-        }
-        virtual float get_Vc_squared(){
-            return 0;
-        }
-        virtual void set_V0_squared(float value){
-            
-        }
-        virtual void set_Vf_squared(float value){
-            
-        }
-        virtual void set_Vc_squared_with_override(){
 
-        }
-        virtual void set_Vc_squared(float value){
-            
-        }
-        virtual void clip_velocity_kinematically(direction_enum dir){
-
-        }
-        virtual float get_dot_product_with_previous_segment(){
-            return 0;
-        }
-        virtual operation_result_enum init(float parameters[]){
+        virtual operation_result_enum init(float _parameters[]){
             for(uint8_t i = 0; i < Config::axis_count;i++){
                 absolute_steps[i] = MACHINE::planner_state->absolute_position_steps[i];// parameters[Config::axis[i].id-'A'] * Config::axis[i].stepsPerUnit;
-            }
+            }      
+            copy_parameters_in(_parameters);
             return success;
         }
         virtual String get_type(){
@@ -110,11 +93,7 @@ namespace RFX_CNC{
         v_struct V02;
         v_struct Vt2;
         v_struct Vf2;
-        float    V0_squared = 0;
-        float    Vc_squared = 0;
-        float    Vf_squared = 0;
-        float    Vi_squared = 0;
-        float    Vmax_squared = 0;        
+
         float    target_velocity = 0;
         float    length_in_units = 1;  
         float    max_acceleration = 0;
@@ -126,64 +105,38 @@ namespace RFX_CNC{
         movement_class(){   
             is_plannable = true;
         }
-        float get_V0_squared(){
-            return V0_squared;
-        }
-        float get_Vf_squared(){
-            return Vf_squared;
-        }
-        float get_Vc_squared(){
-            return Vc_squared;
-        }
-        void set_V0_squared(float value){
-            V0_squared = value;
-        }
-        void set_Vf_squared(float value){
-            Vf_squared = value;            
-        }
-        void set_Vc_squared(float value){
-            Vc_squared = value;            
-        }
-        void set_Vc_squared_with_override(){
-            Vc_squared = MIN(powf2(target_velocity*MACHINE::feed_override),Vmax_squared);
-        }
-        float get_dot_product_with_previous_segment(){
-            return dot_product_with_previous_segment;
-        }
-        void clip_velocity_kinematically(direction_enum dir){
-            if(dir == backward){
-                V0_squared = MIN(abs(Vf_squared + (2 * max_acceleration * length_in_units)),abs(Vc_squared));
-            }
-            if(dir == forward)
-                Vf_squared = MIN(abs(V0_squared + (2 * max_acceleration * length_in_units)),abs(Vc_squared));
-        }
+
         void compute_velocity_components(){
             // Find Junction angle
             dot_product_with_previous_segment = 0;
-            //if(previous_move!=nullptr){
-                for(uint8_t i = 0;i<Config::axis_count;i++){
-                    dot_product_with_previous_segment += MACHINE::planner_state->unit_vector_of_last_move[i]*unit_vector[i];
-                }
-                if(dot_product_with_previous_segment < 0)
-                    dot_product_with_previous_segment = 0;
-            //}
+            for(uint8_t i = 0;i<Config::axis_count;i++){
+                dot_product_with_previous_segment += MACHINE::planner_state->unit_vector_of_last_move[i]*unit_vector[i];
+            }
+            if(dot_product_with_previous_segment < 0)
+                dot_product_with_previous_segment = 0;
+
             acceleration_factor_times_two = 2.0f*(max_acceleration) / ((float)(Config::axis[0].steps_per_unit<<bresenham.smoothing));
             sec_to_usec_multiplied_by_unit_vector = 1000000.0f/((Config::axis[bresenham.index_of_dominate_axis].steps_per_unit<<bresenham.smoothing) * abs(unit_vector[bresenham.index_of_dominate_axis]));
         }
         operation_result_enum compute_max_mechanics(){
             // Find limit feedrate based on configuration
-            Vmax_squared = infinityf();// MAX_FLOAT_VALUE;
-            max_acceleration = infinityf();//MAX_FLOAT_VALUE;
+            float Vmax = infinityf();
+            max_acceleration = infinityf();
             for(uint8_t i = 0; i < Config::axis_count;i++){
-                float v = Config::axis[i].max_feed_units_per_sec / abs(unit_vector[i]); // Actual max velocity the axis allows
-                float a = Config::axis[i].acceleration / abs(unit_vector[i]);           // Actual max accel the axis allows
-                if(v < Vmax_squared)
-                    Vmax_squared = v;
-                if(a < max_acceleration)
-                    max_acceleration = a;
-            }
-            Vmax_squared = Vmax_squared*Vmax_squared;
-            
+                // Actual max velocity the axis allows
+                Vmax =  
+                    MIN(
+                        Vmax,
+                        Config::axis[i].max_feed_units_per_sec / abs(unit_vector[i])
+                    );    
+                // Actual max accel the axis allows              
+                max_acceleration = 
+                    MIN(
+                        max_acceleration,
+                        Config::axis[i].acceleration / abs(unit_vector[i])
+                    );           
+            }            
+            Vt2.max = powf2(Vmax);
             return success;
         }
         int8_t compute_smoothing(){            
@@ -216,10 +169,7 @@ namespace RFX_CNC{
                 return zero_velocity;
             }
             target_velocity = Vt;
-            Vc_squared = powf2(Vt);
-            V0_squared = powf2(V0);
-            Vf_squared = powf2(Vf);
-            Vi_squared = V0_squared;
+            Vt2.target = powf2(Vt);
 
             for(uint8_t i = 0; i < Config::axis_count;i++){
                 delta_steps[i] = steps[i];
@@ -232,7 +182,6 @@ namespace RFX_CNC{
             if(smoothing < 0)
                 return max_velocity_exceeded;
             bresenham.smooth(smoothing);
-            operation_result_enum result;
             compute_max_mechanics();        
             compute_velocity_components();
             if(acceleration_factor_times_two == 0)

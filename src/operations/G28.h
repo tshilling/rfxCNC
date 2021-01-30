@@ -21,11 +21,7 @@ namespace RFX_CNC
         }
         String get_log()
         {
-            String result = "G28- " + String(STEP_ENGINE::usec_in_event) + " (usec)\t" + String(MACHINE::machine_state->getVelocity()) + "units/sec" + "\tcoord(units):";
-            for (int i = 0; i < Config::axis_count; i++)
-            {
-                result += "\t" + String(((float)MACHINE::machine_state->absolute_position_steps[i]) / ((float)Config::axis[i].steps_per_unit));
-            }
+            String result = MACHINE::get_state_log("G28");
             return result;
         }
         String get_type()
@@ -46,8 +42,9 @@ namespace RFX_CNC
         } move_mode;
         uint8_t home_order_index = 0;
         char *home_order = nullptr;
-        operation_result_enum init(float parameters[])
+        operation_result_enum init(float _parameters[])
         {
+            copy_parameters_in(_parameters);
             uint8_t count = 0;
             home_order = new char[Config::axis_count];
             for (int i = 0; i < Config::axis_count; i++)
@@ -92,6 +89,7 @@ namespace RFX_CNC
             MACHINE::machine_mode = MACHINE::home;
             if (move_mode == start)
             {
+                copy_parameters_out();
                 for(; home_order_index < Config::axis_count;home_order_index++){
                     if((home_order[home_order_index] >= 0) && (home_order[home_order_index]<255))
                         break;
@@ -101,6 +99,8 @@ namespace RFX_CNC
                     is_complete = true;
                     STEP_ENGINE::current_line = nullptr;
                     STEP_ENGINE::current_move = nullptr;
+                    MACHINE::machine_mode = MACHINE::run;
+                    MACHINE::set_machine_mode();
                     return true; // ie. operation is done
                 }
                 axis_index = home_order[home_order_index];
@@ -116,7 +116,7 @@ namespace RFX_CNC
             }
             else if (move_mode == seek)
             {
-                if (MACHINE::machine_state->critical_status_bits != 0)
+                if (MACHINE::critical_status_bits != 0)
                 {
                     int uV[Config::axis_count];
                     for (uint8_t i = 0; i < Config::axis_count; i++)
@@ -146,7 +146,7 @@ namespace RFX_CNC
             }
             else if (move_mode == fine)
             {
-                if (MACHINE::machine_state->critical_status_bits != 0)
+                if (MACHINE::critical_status_bits != 0)
                 {
                     move_mode = done;
                 }
@@ -159,7 +159,7 @@ namespace RFX_CNC
                 STEP_ENGINE::current_move = nullptr;
                 MACHINE::machine_state->absolute_position_steps[axis_index] = Config::axis[axis_index].home * Config::axis[axis_index].steps_per_unit;
                 MACHINE::machine_state->zero_offset_steps[axis_index]  = Config::axis[axis_index].home * Config::axis[axis_index].steps_per_unit;
-                console.logln(String(axis_index) + ": "+String(MACHINE::machine_state->zero_offset_steps[axis_index] ));
+                
                 bitWrite(MACHINE::home_required,axis_index,0);
                 home_order_index++;
                 move_mode = start;

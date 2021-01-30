@@ -32,7 +32,7 @@ namespace RFX_CNC
       char binary[33];
       for (uint8_t i = 0; i < 32; i++)
       {
-        if (bitRead(RFX_CNC::MACHINE::machine_state->critical_status_bits, i) == 0)
+        if (bitRead(RFX_CNC::MACHINE::critical_status_bits, i) == 0)
         {
           binary[i] = '0';
           //binaryString+="0";
@@ -80,7 +80,7 @@ namespace RFX_CNC
   void printData()
   {
     console.log(String(millis()));
-    console.log(String(MACHINE::machine_state->getVelocity()), 10);
+    console.log(String(MACHINE::getVelocity()), 10);
     for (uint8_t i = 0; i < 6; i++)
     {
       console.log(String((float)MACHINE::machine_state->absolute_position_steps[i]), (i + 2) * 10); ///(float)CNC_ENGINE::Config::axis[i].stepsPerUnit,2));
@@ -89,20 +89,7 @@ namespace RFX_CNC
   }
   void status_report()
   {
-
-    String result = MACHINE::machine_mode_description[(uint8_t) MACHINE::machine_mode]+": ";
-
-    for(uint8_t i=0;i<16;i++){
-      result += String(bitRead(MACHINE::home_required,i));
-    }
-    result += "\tPos: ";
-    for (uint8_t i = 0; i < Config::axis_count; i++)
-    {
-      result += String(MACHINE::machine_state->get_position_in_coordinates(i));
-      if (i != Config::axis_count - 1)
-        result += ", ";
-    }
-    console.logln(result);
+    console.logln(MACHINE::get_state_log());
   }
   void _engineLoop(void *parameter)
   {
@@ -124,6 +111,7 @@ namespace RFX_CNC
     unsigned long short_delta = 0;
     unsigned long long_delta = 0;
     operation_class *operation = nullptr;
+    MACHINE::machine_mode_enum previous_mode = MACHINE::locked;
     for (;;)
     {
       vTaskDelay(10); // Not always garanteed to get to end of loop but must always have a vTaskDelay, keep at start of loop
@@ -138,16 +126,17 @@ namespace RFX_CNC
       {                                                             // 10 msec or 100Hz
         sp_previous_time = new_time - (short_delta - SHORT_PERIOD); // Deals with time variations, little bit of excess in one will result in a little short in the next
 
-          
         MACHINE::scan_inputs(short_delta);
         MACHINE::handle_inputs();
+        MACHINE::handle_outputs();
       }
-      if(MACHINE::home_required && MACHINE::machine_mode != MACHINE::home)
-      {
-        MACHINE::machine_mode = MACHINE::need_homing;
-      }
+
+      MACHINE::set_machine_mode();
       if (MACHINE::machine_mode >= MACHINE::run)
       {
+        if(previous_mode<MACHINE::run){
+          MACHINE::enable_all_drives();
+        }
         //###### Long Period Functions #######
         long_delta = new_time - lp_previous_time;
         if (long_delta >= LONG_PERIOD)
@@ -168,23 +157,23 @@ namespace RFX_CNC
           {
             if (operation->execute())
             {
-              operation_controller.operation_queue.dequeue();
               console.logln(operation->get_log());
+              operation_controller.operation_queue.dequeue();
               operation = nullptr;
             }
           }
         }
         else{
-          MACHINE::machine_mode = MACHINE::idle;
+          MACHINE::set_machine_mode();
           status_report();
         }
       }
+      previous_mode = MACHINE::machine_mode;
     }
   }
 
   void process_command(PARSER::command_struct *commands)
   {
-
     if (commands->parameter.size() == 0)
       return;
     if(commands->parameter[0].key.length() == 0)
@@ -211,8 +200,62 @@ namespace RFX_CNC
       case '?':
         status_report();
         return;
+      case '#':
+        MACHINE::print_gcode_mode();
+        return;
       case '!':
         MACHINE::perform_feed_hold();
+        status_report();
+        return;
+      case 0x90:  // Set 100% feed rate.  If parameter is passed, us that instead (in percent)
+        if(commands->parameter[0].value==NAN){
+          MACHINE::set_feed_override(1.0);
+        }
+        else{
+          MACHINE::set_feed_override(commands->parameter[0].value/100.0);
+        }
+        status_report();
+        return;
+      case 0x91:  // Increase feed overide by 10%
+        MACHINE::set_feed_override(MACHINE::get_feed_override()+0.1);
+        status_report();
+        return;
+      case 0x92:  // Decrease feed overide by 10%
+        MACHINE::set_feed_override(MACHINE::get_feed_override()-0.1);
+        status_report();
+        return;
+      case 0x93:  // Increase feed overide by 1%
+        MACHINE::set_feed_override(MACHINE::get_feed_override()+0.01);
+        status_report();
+        return;
+      case 0x94:  // Decrease feed overide by 1%
+        MACHINE::set_feed_override(MACHINE::get_feed_override()-0.01);
+        status_report();
+        return;
+
+      case 0x99:  // Set 100% spindle rate.  If parameter is passed, us that instead (in percent)
+        if(commands->parameter[0].value==NAN){
+          MACHINE::set_spindle_override(1.0);
+        }
+        else{
+          MACHINE::set_spindle_override(commands->parameter[0].value/100.0);
+        }
+        status_report();
+        return;
+      case 0x9A:  // Increase spindle overide by 10%
+        MACHINE::set_spindle_override(MACHINE::get_spindle_override()+0.1);
+        status_report();
+        return;
+      case 0x9B:  // Decrease spindle overide by 10%
+        MACHINE::set_spindle_override(MACHINE::get_spindle_override()-0.1);
+        status_report();
+        return;
+      case 0x9C:  // Increase spindle overide by 1%
+        MACHINE::set_spindle_override(MACHINE::get_spindle_override()+0.01);
+        status_report();
+        return;
+      case 0x9D:  // Decrease spindle overide by 1%
+        MACHINE::set_spindle_override(MACHINE::get_spindle_override()-0.01);
         status_report();
         return;
     }

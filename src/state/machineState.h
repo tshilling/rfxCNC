@@ -52,15 +52,19 @@ namespace RFX_CNC
         extern bool is_active;
         extern bool optional_stop;
 
-        extern float feed_override;
-        extern bool feed_override_allowed;
+        extern float feed_override_squared;
+        extern bool  feed_override_allowed;
         extern float spindle_override;
+        extern bool  spindle_override_allowed;
+
+        extern float velocity_squared;
+        extern float spindle_speed;
+
+        extern uint32_t critical_status_bits;
 
         class machine_state_class
         {
         public:
-            uint32_t critical_status_bits;
-
             float parameter[26] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
             int32_t absolute_position_steps[axisCountLimit];
@@ -84,8 +88,6 @@ namespace RFX_CNC
             float unit_vector_of_last_move[axisCountLimit];
 
             uint8_t tool_index = 0;
-            float velocity_squared = 0;
-
             enum motion_mode_enum
             {
                 G0 = 0,      // Rapid
@@ -174,7 +176,6 @@ namespace RFX_CNC
                     unit_vector_of_last_move[i] = 0;
                 }
                 critical_status_bits = 0;
-                velocity_squared = 0;
                 modal.motion = G0;
                 modal.plane = plane_XY;
                 modal.coordinate_sytem = 0;
@@ -185,24 +186,36 @@ namespace RFX_CNC
                 modal.spindle_state = spindle_off;
                 modal.coolant_state = coolant_off;
             }
-            float getVelocity()
-            {
-                return sqrtf(velocity_squared);//(1.0f / v);
-            }
+            
             machine_state_class()
             {
                 init();
             }
         };
+        
+        
         extern machine_state_class *machine_state;
         extern machine_state_class *planner_state;
         void init_machine_state();
         void scan_inputs(unsigned long delta_time);
         void handle_inputs();
+        void handle_outputs();
         bool perform_emergency_stop();
         bool perform_emergency_stop(String msg);
         bool perform_unlock();
         bool perform_cycle_start();
         bool perform_feed_hold();
+        void set_machine_mode();
+        String get_state_log(String pre);
+        String get_state_log();
+        bool set_feed_override(float value);
+        float get_feed_override();
+        bool set_spindle_override(float value);
+        float get_spindle_override();
+        void disable_all_drives();
+        void enable_all_drives();
+        float getVelocity();
+        void print_gcode_mode();
+        
     } // namespace MACHINE
 } // namespace RFX_CNC

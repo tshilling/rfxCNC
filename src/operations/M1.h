@@ -12,6 +12,7 @@ namespace RFX_CNC{
 
         }
         bool execute(){
+            copy_parameters_out();
             if(MACHINE::optional_stop)
                 MACHINE::is_active = false;
             is_complete = true;

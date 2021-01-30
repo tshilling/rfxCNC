@@ -35,7 +35,7 @@ void setup()
 {
   Serial.begin(SERIALBAUD);
   console.init(&Serial);
-
+  console.timestamp = true;
   console.logln();
   console.bar(64);
   console.bar("RFX", 64);

@@ -109,33 +109,36 @@ namespace RFX_CNC
         {
             // This check is required because of how bresenham's work.  Each time the function is called
             // we will step even with 0 velocity because are timer is set to a max time
-            if(MACHINE::machine_state->velocity_squared > 0){
+            if(MACHINE::velocity_squared > 0){
                 current_move->is_complete = step_bresenham(current_line);
             }
             if (current_move->acceleration_factor_times_two != 0)
             {
-                float V = MACHINE::machine_state->velocity_squared;
+                float V2 = MACHINE::velocity_squared;
                 if(MACHINE::is_feedhold){
                     // If feedhold is active, reduce the velocity to zero to smoothly decel, no mater what we are doing
-                    V -= current_move->acceleration_factor_times_two;
+                    V2 -= current_move->acceleration_factor_times_two;
                 }
                 else{
-                    if (current_line->delta_steps[current_line->index_of_dominate_axis] <= (V - current_move->Vf_squared) / (current_move->acceleration_factor_times_two))
-                        V -= current_move->acceleration_factor_times_two;
-                    else if (V < (current_move->Vc_squared))
-                        V += current_move->acceleration_factor_times_two;
+                    float Vf2 = MIN(current_move->Vf2.target*MACHINE::feed_override_squared,current_move->Vf2.max);
+                    float Vt2 = MIN(current_move->Vt2.target*MACHINE::feed_override_squared,current_move->Vt2.max);
+                    if (current_line->delta_steps[current_line->index_of_dominate_axis] <= (V2 - Vf2) / (current_move->acceleration_factor_times_two))
+                        V2 -= current_move->acceleration_factor_times_two;
+                    else if (V2 < Vt2)
+                        V2 += current_move->acceleration_factor_times_two;
                 }
 
                 // Hard velocity limit based on configuration of axis mechanical limits
-                if (V > current_move->Vmax_squared)
-                    V = current_move->Vmax_squared;
-                if (V < 0.0001)
-                    V = 0; //SMALLEST_FLOAT; // Smallest Value not zero
-                MACHINE::machine_state->velocity_squared = V;
-                if (MACHINE::machine_state->velocity_squared == 0)
+                //if (V > current_move->Vt2.max)
+                //    V = current_move->Vt2.max;
+
+                if (V2 < 0.0001)
+                    V2 = 0; //SMALLEST_FLOAT; // Smallest Value not zero
+                MACHINE::velocity_squared = V2;
+                if (MACHINE::velocity_squared == 0)
                     usec_between_steps = Config::step_engine_config.max_usec_between_steps;
                 else
-                    usec_between_steps = Q_rsqrt(MAX(MACHINE::machine_state->velocity_squared, 0), 0) * current_move->sec_to_usec_multiplied_by_unit_vector;
+                    usec_between_steps = Q_rsqrt(MAX(MACHINE::velocity_squared, 0), 0) * current_move->sec_to_usec_multiplied_by_unit_vector;
                 if (usec_between_steps < Config::step_engine_config.min_usec_between_steps)
                     usec_between_steps = Config::step_engine_config.min_usec_between_steps;
             }
@@ -215,13 +218,13 @@ namespace RFX_CNC
                             if (current_line->direction[i] < 0)
                             {
                                 // Handle min
-                                if (bitRead(MACHINE::machine_state->critical_status_bits, i * 3)) // Status bits are [min, max, home]
+                                if (bitRead(MACHINE::critical_status_bits, i * 3)) // Status bits are [min, max, home]
                                     safe_to_continue = false;
                             }
                             else if (current_line->direction[i] > 0)
                             {
                                 // Handle max
-                                if (bitRead(MACHINE::machine_state->critical_status_bits, (i * 3) + 1))
+                                if (bitRead(MACHINE::critical_status_bits, (i * 3) + 1))
                                     safe_to_continue = false;
                             }
                         }
