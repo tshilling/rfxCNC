@@ -307,7 +307,7 @@ namespace RFX_Server{
                 }
             } else if (upload.status == UPLOAD_FILE_END) {
                 if (Update.end(true)) { //true to set the size to the current progress
-                Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                Serial.printf("Update ok: %u\nRebooting...\n", upload.totalSize);
                 } else {
                 Update.printError(Serial);
                 }
@@ -357,7 +357,7 @@ namespace RFX_Server{
                 return false;
             }
         }
-        console.logln(" Success.");
+        console.logln(" ok.");
         console.logln("IP:\t"+WiFi.localIP().toString());
         return true;
     }

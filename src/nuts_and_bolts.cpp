@@ -1,5 +1,6 @@
-#include "CNCHelpers.h"
-namespace RFX_CNC{
+#include "nuts_and_bolts.h"
+namespace RFX_CNC
+{
     // "m","cm","mm","ft","in", [from][to]
     const float unit_convert[5][5] = {
         {1.000f, 100.0f, 1000.0f, 3.281f, 39.37f},
@@ -75,7 +76,7 @@ namespace RFX_CNC{
         }
         return true;
     }
-    float unit_vector_return_length(float vector_in[], float result_out[], uint8_t count, uint8_t refinement){
+    float unit_vector_return_length(float vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement){
         float length_squared = 0;
         for(uint8_t i = 0; i < count;i++){
             length_squared += vector_in[i]*vector_in[i];
@@ -92,7 +93,7 @@ namespace RFX_CNC{
         }
         return 1.0f / inverse_sqrt_of_length_squared;
     }
-    float unit_vector_return_length(int32_t vector_in[], float result_out[], uint8_t count, uint8_t refinement){
+    float unit_vector_return_length(int32_t vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement){
         float length_squared = 0;
         for(uint8_t i = 0; i < count;i++){
             length_squared += vector_in[i]*vector_in[i];
@@ -143,4 +144,4 @@ namespace RFX_CNC{
         }
         return index;
     }
-}
+};

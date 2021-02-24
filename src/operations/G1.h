@@ -1,21 +1,19 @@
 #pragma once
 #include "Arduino.h"
 #include "operations.h"
-#include "operation_controller.h"
+//#include "operation_controller.h"
 #include <RFX_Console.h>
 #include "bresenham.h"
-#include "step_engine/step_engine.h"
+//#include "step_engine/step_engine.h"
 
 namespace RFX_CNC{
-    class G1:public movement_class{      
+    class operation_G1 : public operation_class{      
         public:     
 
-        G1(){
-            execute_in_interrupt = true;
-            is_plannable = true;
+        operation_G1(command_block* _block):operation_class(_block){
             machine_mode = MACHINE::run;
         }
-        ~G1(){
+        ~operation_G1(){
 
         }
         String get_log(){
@@ -27,24 +25,27 @@ namespace RFX_CNC{
         }
 
         public:
-        long usec_in_event = 0;
-        
-        operation_result_enum init(float _parameters[], uint32_t present_flag){
-            return init(_parameters);
-        }
-        operation_result_enum init(float _parameters[]){      
-            copy_parameters_in(_parameters);
-            for(uint8_t i = 0; i < Config::axis_count;i++){
-                absolute_steps[i] = MACHINE::planner_state->get_absolute_steps_from_coordinates(i, parameters[Config::axis[i].id-'A']);
-            }
-            target_velocity = parameters[_F_];
+        //long usec_in_event = 0;
+
+        status_enum init(MACHINE::machine_state_class* state){    
+            status_enum result = operation_class::init(state);
+            if(result!=status_ok)
+                return result;
+            int32_t delta_steps[config.axis.size()];
             
-            int32_t* previous_move_absolute_steps = &MACHINE::planner_state->absolute_position_steps[0];
-            for(uint8_t i = 0; i < Config::axis_count;i++){
-                delta_steps[i] = absolute_steps[i] - previous_move_absolute_steps[i];
-                //delta_units[i] = delta_steps[i] / Config::axis[i].steps_per_unit;
+             for(uint8_t i = 0; i < config.axis.size();i++){
+                delta_steps[i] = state->absolute_position_steps[i] - state->p_absolute_position_steps[i];// state->get_absolute_steps_from_coordinates(i);
+                //if(state->previous_state!=nullptr)
+                //    delta_steps[i] -= state->previous_state->get_absolute_steps_from_coordinates(i);             
             }
-            return init_delta_step_move(delta_steps,0,target_velocity,0);
+            float target_velocity = state->get_feed_rate()/60.0f;
+            motion = new motion_class();
+            result = motion->init_delta_step_move(delta_steps,0,target_velocity,0);
+            for(uint8_t i = 0; i<config.axis.size();i++){
+                state->unit_vector_of_last_move[i] = motion->unit_vector[i];
+            }
+
+            return result;
         }
     };
 }

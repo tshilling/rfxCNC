@@ -1,19 +1,47 @@
 {
     "machine_name": "RFX Default",
     "machine_units": "mm",
-    "spindle"
-    "estop_pin" : 23,
+    
+    "step_max_usec_between" : 50000,  
+    "step_min_usec_between" : 20,
+    "step_pulse_on_usec"    : 10,
+    "step_idle_delay_msec"  : 25,
+    "dir_pin_settle_usec"   : 2,
+    "junction_deviation"    : 0.010,
+    "arc_tolerance"         : 0.002,
+
+    "estop_pin" : 14,
     "estop_pin_invert" : false,
-    "feedhold_pin" : 21,
-    "feedhold_pin_invert" : false,
-    "probe_pin" : 12,
+    "probe_pin" : 27,
     "probe_pin_invert" : false,
+    "feed_hold_pin" : -1,
+    "feed_hold_pin_invert" : false,
+
+    "input_debounce_msec" : 5,
+
+    "coordinate":[
+      [0,0,0,0],
+      [1,1,1,1],
+      [10,10,10,10]
+    ],
+
+    "spindle" :[
+      {
+        "min_value" : 0,
+        "max_value" : 10000,
+        "ramp"      : false,
+        "output_pin": -1,
+        "output_pin_invert":false
+      }
+    ],
+
     "axis": [
       {
         "axis_id": "X",
         "follow": "X",
-        "is_rotary": false,
-        "is_discrete": true,
+        "is_rotary"     : false,
+        "is_discrete"   : true,
+        "require_home"  : true,
         "min": 1000,
         "max": 0,
         "home": 0,
@@ -22,7 +50,6 @@
         "soft_limit": true,
         "home_feed_fine": 1,
         "home_feed_coarse": 5,
-        "home_switch_debounce_msec": 5,
         "home_pulloff_units": 1,
         "steps_per_unit": 200,
         "max_feed_units_per_sec": 60,

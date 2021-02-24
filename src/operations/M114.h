@@ -3,22 +3,23 @@
 #include "Arduino.h"
 #include "operations.h"
 namespace RFX_CNC{
-    class M114:public operation_class{     
+    class operation_M114:public operation_class{     
         public:              
-        M114(){
+        operation_M114(command_block* _block):operation_class(_block)
+        {
 
         }
-        ~M114(){
+        ~operation_M114(){
 
         }
-        bool execute(){
+        bool sub_execute(MACHINE::machine_state_class* state){
+            operation_class::execute(state);
             console.log("Position: ");
-            for(uint8_t i=0;i<Config::axis_count;i++){
-                console.log(String(MACHINE::machine_state->get_position_in_coordinates(i))+", ");
+            for(uint8_t i=0;i<config.axis.size();i++){
+                console.log(String(state->steps_to_coordinate(state->absolute_position_steps[i], i))+", ");
             }
             console.logln();
-            is_complete = true;
-            return is_complete;
+            return true;
         }
         String get_type(){
             return "M114";

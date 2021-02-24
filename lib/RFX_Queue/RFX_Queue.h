@@ -7,7 +7,7 @@ USAGE:
     child* C =  new child;
     queue.enqueue(B);
     queue.enqueue(C);
-  when queue.dequeue() is called, the object is NOT Returned. A boolean indicating success is returned
+  when queue.dequeue() is called, the object is NOT Returned. A boolean indicating ok is returned
   and the object is deleted, freeing it from the Heap. Manipulate the object using the getTailPtr / 
   getHeadPtr functions, then dequeue the object when done with object.
 */
@@ -20,19 +20,22 @@ class rfx_queue{
 
   public:
   bool locked = false;
-  class Node{
+  class node_class{
    public:
     String name = "";
     T* item;
-    Node* next;
-    Node* previous;
-    Node() { next = nullptr; previous = nullptr; }
-    ~Node() { next = nullptr; previous = nullptr; }
+    node_class* next;
+    node_class* previous;
+    node_class() { next = nullptr; previous = nullptr; }
+    ~node_class() { next = nullptr; previous = nullptr; }
   };
-  std::vector<Node> nodes;
-  Node* Head = nullptr;
-  Node* Tail = nullptr;
+  std::vector<node_class> nodes;
+  node_class* Head = nullptr;
+  node_class* Tail = nullptr;
   public:
+  uint16_t get_available(){
+    return nodes.size()-count;
+  }
   bool enqueue(T* item){
     if(count>=nodes.size())
       return false; // Full
@@ -61,7 +64,7 @@ class rfx_queue{
       return false;
     delete Head->item;
     Head->item = nullptr;
-    Node* newHead = Head->next;
+    node_class* newHead = Head->next;
     Head->next = nullptr;
     Head->previous = nullptr;
     Head = newHead;
@@ -105,12 +108,12 @@ class rfx_queue{
   ~rfx_queue(){
     
   }
-  Node* getHeadPtr(){
+  node_class* getHeadPtr(){
     if(count == 0)
       return nullptr;
     return Head;
   }
-  Node* getTailPtr(){
+  node_class* getTailPtr(){
     if(count == 0)
       return nullptr;
     return Tail;

@@ -7,16 +7,15 @@
 
 namespace RFX_CNC
 {
-    class G28 : public movement_class
+    class operation_G28 : public operation_class
     {
     public:
-        G28()
+        operation_G28(command_block* _block):operation_class(_block)
         {
-            execute_in_interrupt = false;
-            is_plannable = false;
-            machine_mode = MACHINE::home;
+
+            machine_mode = MACHINE::homing;
         }
-        ~G28()
+        ~operation_G28()
         {
         }
         String get_log()
@@ -29,8 +28,6 @@ namespace RFX_CNC
             return "G28";
         }
 
-    private:
-    public:
         long usec_in_event = 0;
         enum mode_enum
         {
@@ -42,37 +39,41 @@ namespace RFX_CNC
         } move_mode;
         uint8_t home_order_index = 0;
         char *home_order = nullptr;
-        operation_result_enum init(float _parameters[])
+        status_enum init(MACHINE::machine_state_class *state)
         {
-            copy_parameters_in(_parameters);
+            operation_class::init(state);
             uint8_t count = 0;
-            home_order = new char[Config::axis_count];
-            for (int i = 0; i < Config::axis_count; i++)
+            home_order = new char[config.axis.size()];
+            for (int i = 0; i < config.axis.size(); i++)
             {
                 home_order[i] = -1;
-                if (Config::home_order[i] >= 'A')
+                if (config.home_order[i] >= 'A')
                 {
-                    if (!isinf(parameters[Config::home_order[i] - 'A']))         // Parameter mentioned
+                    if (!isinf(state->block.parameter[config.home_order[i] - 'A'])) // Parameter mentioned
                     {
                         count++;
-                        int8_t index_of_axis = Config::get_axis_index_by_id(Config::home_order[i]);
-                        if (index_of_axis>=0){
+                        int8_t index_of_axis = config.get_axis_index_by_id(config.home_order[i]);
+                        if (index_of_axis >= 0)
+                        {
                             home_order[i] = index_of_axis;
                         }
                     }
                 }
             }
-            if (count == 0){
-                for (int i = 0; i < Config::axis_count; i++){
-                    if (Config::home_order[i] >= 'A'){
-                        int8_t index_of_axis = Config::get_axis_index_by_id(Config::home_order[i]);
-                        if (index_of_axis>=0)
+            if (count == 0)
+            {
+                for (int i = 0; i < config.axis.size(); i++)
+                {
+                    if (config.home_order[i] >= 'A')
+                    {
+                        int8_t index_of_axis = config.get_axis_index_by_id(config.home_order[i]);
+                        if (index_of_axis >= 0)
                             home_order[i] = index_of_axis;
                     }
                 }
             }
             console.log("Home Order After: ");
-            for (uint8_t i = 0; i < Config::axis_count; i++)
+            for (uint8_t i = 0; i < config.axis.size(); i++)
             {
                 String t = String((int)home_order[i]);
                 t += ", ";
@@ -81,20 +82,26 @@ namespace RFX_CNC
             console.logln();
             home_order_index = 0;
             move_mode = start;
-            return success;
+            return status_ok;
         }
         uint8_t axis_index = 0;
-        bool execute()
+        bool execute(MACHINE::machine_state_class *state)
         {
+            /*
             MACHINE::machine_mode = MACHINE::home;
             if (move_mode == start)
             {
-                copy_parameters_out();
-                for(; home_order_index < Config::axis_count;home_order_index++){
-                    if((home_order[home_order_index] >= 0) && (home_order[home_order_index]<255))
+                if (pass_count == 1)
+                {
+                    movement_class::execute(state);
+                }
+                for (; home_order_index < config.axis.size(); home_order_index++)
+                {
+                    if ((home_order[home_order_index] >= 0) && (home_order[home_order_index] < 255))
                         break;
                 }
-                if(home_order_index==Config::axis_count){
+                if (home_order_index == config.axis.size())
+                {
                     bresenham.is_complete = true;
                     is_complete = true;
                     STEP_ENGINE::current_line = nullptr;
@@ -104,27 +111,27 @@ namespace RFX_CNC
                     return true; // ie. operation is done
                 }
                 axis_index = home_order[home_order_index];
-                float uV[Config::axis_count];
-                for (uint8_t i = 0; i < Config::axis_count; i++)
+                float uV[config.axis.size()];
+                for (uint8_t i = 0; i < config.axis.size(); i++)
                 {
                     uV[i] = 0;
                 }
                 // Home Z axis, 3rd axis
                 uV[axis_index] = 1;
-                init_infinate_move(uV, Config::axis[axis_index].home_feed_coarse);
+                init_infinate_move(uV, config.axis[axis_index].home_feed_coarse);
                 move_mode = seek;
             }
             else if (move_mode == seek)
             {
                 if (MACHINE::critical_status_bits != 0)
                 {
-                    int uV[Config::axis_count];
-                    for (uint8_t i = 0; i < Config::axis_count; i++)
+                    int uV[config.axis.size()];
+                    for (uint8_t i = 0; i < config.axis.size(); i++)
                     {
                         uV[i] = 0;
                     }
-                    uV[axis_index] = -Config::axis[axis_index].steps_per_unit * Config::axis[axis_index].home_pulloff_units;
-                    init_delta_step_move(uV, 0, Config::axis[axis_index].home_feed_coarse, 0);
+                    uV[axis_index] = -config.axis[axis_index].steps_per_unit * config.axis[axis_index].home_pulloff_units;
+                    init_delta_step_move(uV, 0, config.axis[axis_index].home_feed_coarse, 0);
                     move_mode = backoff;
                     // machine_state->hard_limit_enabled = false;
                 }
@@ -133,13 +140,13 @@ namespace RFX_CNC
             {
                 if (bresenham.is_complete)
                 {
-                    float uV[Config::axis_count];
-                    for (uint8_t i = 0; i < Config::axis_count; i++)
+                    float uV[config.axis.size()];
+                    for (uint8_t i = 0; i < config.axis.size(); i++)
                     {
                         uV[i] = 0;
                     }
                     uV[axis_index] = 1;
-                    init_infinate_move(uV, Config::axis[axis_index].home_feed_fine);
+                    init_infinate_move(uV, config.axis[axis_index].home_feed_fine);
                     move_mode = fine;
                     //  machine_state->hard_limit_enabled = true;
                 }
@@ -152,15 +159,15 @@ namespace RFX_CNC
                 }
             }
             if (move_mode == done)
-            {                                        
+            {
                 bresenham.is_complete = true;
                 is_complete = true;
                 STEP_ENGINE::current_line = nullptr;
                 STEP_ENGINE::current_move = nullptr;
-                MACHINE::machine_state->absolute_position_steps[axis_index] = Config::axis[axis_index].home * Config::axis[axis_index].steps_per_unit;
-                MACHINE::machine_state->zero_offset_steps[axis_index]  = Config::axis[axis_index].home * Config::axis[axis_index].steps_per_unit;
-                
-                bitWrite(MACHINE::home_required,axis_index,0);
+                MACHINE::machine_state->absolute_position_steps[axis_index] = config.axis[axis_index].home * config.axis[axis_index].steps_per_unit;
+                MACHINE::machine_state->zero_offset_steps[axis_index] = config.axis[axis_index].home * config.axis[axis_index].steps_per_unit;
+
+                bitWrite(MACHINE::home_required, axis_index, 0);
                 home_order_index++;
                 move_mode = start;
             }
@@ -169,9 +176,8 @@ namespace RFX_CNC
                 STEP_ENGINE::current_line = &bresenham;
                 STEP_ENGINE::current_move = this;
             }
-            
-
+*/
             return false;
         }
     };
-} // namespace CNC_ENGINE
+} // namespace RFX_CNC

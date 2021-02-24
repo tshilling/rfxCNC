@@ -1,7 +1,9 @@
 #pragma once
 #include "Arduino.h"
+#include <RFX_Console.h> // Common serial port out interface
 #include "CNCEngineConfig.h"
-#include "CNCHelpers.h"
+#include "nuts_and_bolts.h"
+#include "../operations/command_block.h"
 
 #define _A_ 0
 #define _B_ 1
@@ -32,17 +34,23 @@
 
 namespace RFX_CNC
 {
+
+    extern String modal_description[modal_enum::MAX_VALUE];
+
     namespace MACHINE
     {
         extern String machine_mode_description[];
         enum machine_mode_enum
         {
             locked = 0,
+            door,
             need_homing,
             idle,
             run,
-            home,
-            probe
+            hold,
+            homing,
+            probing,
+            jogging
         };
         extern machine_mode_enum machine_mode;
         extern bool hard_limit_enabled;
@@ -53,169 +61,271 @@ namespace RFX_CNC
         extern bool optional_stop;
 
         extern float feed_override_squared;
-        extern bool  feed_override_allowed;
         extern float spindle_override;
-        extern bool  spindle_override_allowed;
+        extern bool spindle_override_allowed;
 
         extern float velocity_squared;
         extern float spindle_speed;
 
         extern uint32_t critical_status_bits;
+        extern uint32_t critical_min_mask;
+        extern uint32_t critical_max_mask;
+        extern uint32_t critical_home_mask;
+        extern uint32_t critical_other_mask;
 
         class machine_state_class
         {
         public:
-            float parameter[26] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+            command_block block;
+            //machine_state_class *previous_state = nullptr;
+            std::vector<int32_t> p_absolute_position_steps;
+            std::vector<int32_t> absolute_position_steps;
+            std::vector<int32_t> zero_offset_steps;
+            std::vector<float> unit_vector_of_last_move;
+            int8_t coordinate_system_index;
+            void update_state(command_block *in)
+            {
+                update_state(in, false);
+            }
+            void update_state(command_block *in, bool for_planner)
+            {
+                for (uint8_t i = 0; i < 26; i++)
+                {
+                    if (!isnan(in->parameter[i]) && !isinf(in->parameter[i]))
+                    {
+                        block.parameter[i] = in->parameter[i];
+                    }
+                }
+                for (uint8_t i = 0; i < mg_max_value; i++)
+                {
+                    if (in->modal[i] != not_set)
+                    {
+                        block.modal[i] = in->modal[i];
+                        if (i == mg_coordinate)
+                        {
+                            if ((block.modal[mg_coordinate] >= G54) && (block.modal[mg_coordinate] <= G59))
+                            {
+                                coordinate_system_index = block.modal[mg_coordinate] - G54; // Convert to value offset of 0
+                            }
+                            if (block.modal[mg_coordinate] == G92)
+                            {
+                                for (uint8_t i = 0; i < config.axis.size(); i++)
+                                {
+                                    float D = in->parameter[config.axis[i].id - 'A'];
+                                    if (!isnan(D) && !isinf(D))
+                                    {
+                                        if (block.get_modal(mg_units) == G20) // If machine state units are "in"
+                                            D *= unit_convert[units_in][units_mm];
+                                        config.get_coordinate_system(G92 - G54)[i] = D + config.get_coordinate_system(coordinate_system_index)[i];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!for_planner)
+                    return;
 
-            int32_t absolute_position_steps[axisCountLimit];
-            int32_t zero_offset_steps[axisCountLimit];
-            int32_t get_offset_steps(uint8_t index)
-            {
-                return absolute_position_steps[index] - zero_offset_steps[index];
-            }
-            float get_position_in_machine_coordinates(uint8_t index)
-            {
-                return ((float)absolute_position_steps[index]) / ((float)Config::axis[index].steps_per_unit);
-            }
-            float get_position_in_coordinates(uint8_t index)
-            {
-                return ((float)get_offset_steps(index)) / ((float)Config::axis[index].steps_per_unit);
-            }
-            int32_t get_absolute_steps_from_coordinates(uint8_t index, float value)
-            {
-                return (value * Config::axis[index].steps_per_unit) + zero_offset_steps[index];
-            }
-            float unit_vector_of_last_move[axisCountLimit];
+                // Update Coordinates
+                for (uint8_t i = 0; i < config.axis.size(); i++)
+                {
+                    p_absolute_position_steps[i] = absolute_position_steps[i];
+                    uint8_t id = config.axis[i].id - 'A';
+                    float D = in->parameter[id];
+                    if (isnan(D) || isinf(D))
+                        continue;
 
-            uint8_t tool_index = 0;
-            enum motion_mode_enum
+                    // Handle absolute vs relative positioning
+                    if (block.get_modal(mg_distance) == G91)
+                    {
+                        // Get the dimension in the right units
+                        if (block.get_modal(mg_units) == G20) // If machine state units are "in"
+                            D = D * unit_convert[units_in][units_mm];
+                        //else // Else, they must be "mm"
+                        //    D = D * unit_convert[units_mm][config.machine_units];
+                        int32_t steps = D * config.axis[i].steps_per_unit;
+                        absolute_position_steps[i] += steps;
+                    }
+                    else
+                    {
+                        absolute_position_steps[i] = coordinates_to_steps(D, i);
+                    }
+                }
+            }
+
+            void print_gcode_mode()
             {
-                G0 = 0,      // Rapid
-                G1 = 1,      // Linear
-                G2 = 2,      // CW Arc
-                G3 = 3,      // CCW Arc
-                G38_2 = 382, // Probe toward workpiece, stop on contact, signal error if failure
-                G38_3 = 383, // Probe toward workpiece, stop on contact
-                G38_4 = 384, // Probe away from workpiece, stop on loss of contact, signal error if failure
-                G38_5 = 385, // Probe away from workpiece, stop on loss of contact
-                G80 = 80     // Cancel canned cycle
+                for (uint8_t i = 0; i < 26; i++)
+                {
+                    console.log(String((char)(i + 'A')), 7 * (i + 1));
+                }
+                console.logln();
+                for (uint8_t i = 0; i < 26; i++)
+                {
+                    console.log(String(block.parameter[i]), 7 * (i + 1));
+                }
+                console.logln();
+                for (uint8_t i = 0; i < mg_max_value; i++)
+                {
+                    console.log(modal_description[block.modal[i]], 7 * (i + 1));
+                }
+                console.logln();
+            }
+
+            float steps_to_coordinate(int32_t steps, uint8_t axis_index)
+            {
+                float position = 0;
+                // 1) Convert to Units
+                position = ((float)steps) / ((float)config.axis[axis_index].steps_per_unit);
+                // 2) Remove Offset
+                position -= config.get_coordinate_system(coordinate_system_index)[axis_index] - config.get_coordinate_system(G92 - G54)[axis_index];
+                ;
+                // 3) Convert Units
+                if (block.get_modal(mg_units) == G20) // If machine state units are "in"
+                    position *= unit_convert[units_mm][units_in];
+                //else // Else, they must be "mm"
+                //    position *= unit_convert[config.machine_units][units_mm];
+                return position;
+            }
+            int32_t coordinates_to_steps(float position, uint8_t axis_index)
+            {
+                // 1) Convert Units
+                if (block.get_modal(mg_units) == G20) // If machine state units are "in"
+                    position *= unit_convert[units_in][units_mm];
+                //else // Else, they must be "mm"
+                //    position *= unit_convert[units_mm][config.machine_units];
+                // 2) Apply Offset
+                position += config.get_coordinate_system(coordinate_system_index)[axis_index] - config.get_coordinate_system(G92 - G54)[axis_index];
+                // 3) Convert to steps
+                int32_t steps = position * config.axis[axis_index].steps_per_unit;
+                return steps;
+            }
+            float get_feed_rate()
+            {
+                float result = block.parameter[_F_];
+                if (result == 0) // Easy to protect from division of zero error
+                    return 0;
+                if (block.get_modal(mg_feed_rate) == G93) // If in inverse feed mode? invert it.
+                    result = 1.0f / result;
+                if (block.get_modal(mg_units) == G20) // If machine state units are "in"
+                    result = result * unit_convert[units_in][units_mm];
+                //else // Else, they must be "mm"
+                //    result = result * unit_convert[units_mm][config.machine_units];
+                return result;
+            }
+            bool is_feed_overried_allowed()
+            {
+                if (block.get_modal(mg_override) == M48)
+                    return true;
+                return false;
+            }
+            float get_spindle_speed()
+            {
+                float result = block.parameter[_S_];
+                if (block.get_modal(mg_spindle) == M3)
+                    return result;
+                if (block.get_modal(mg_spindle) == M4)
+                    return -result;
+                return 0;
+            }
+            enum coolant_enum
+            {
+                off,
+                mist,
+                flood
             };
-            enum plane_select_enum
+            coolant_enum get_coolant()
             {
-                G17 = 17,
-                G18 = 18,
-                G19 = 19,
-                plane_XY = 17,
-                plane_ZX = 18,
-                plane_YZ = 19
-            };
-            enum feed_rate_mode_enum
+                if (block.get_modal(mg_coolant) == M7)
+                    return mist;
+                if (block.get_modal(mg_coolant) == M8)
+                    return flood;
+                if (block.get_modal(mg_coolant) == M9)
+                    return off;
+            }
+            uint8_t get_active_coordinate_index()
             {
-                G93 = 93, // Inverse Time Mode
-                G94 = 94, // Units per minute
-                inverse_time = 93,
-                units_per_minute = 94
-            };
-            enum state_words_enum
-            {
-                off = 0,
-                on = 1,
-                left,
-                right,
-                top,
-                bottom,
-                CW,
-                CCW,
-                positive,
-                negative,
-                exact,
-                absolute,
-                incremental
-            };
-            enum spindle_state_enum
-            {
-                M3 = 3,          // CW
-                M4 = 4,          // CCW
-                M5 = 5,          // Stop
-                spindle_CW = 3,  // CW
-                spindle_CCW = 4, // CCW
-                spindle_off = 5  // Stop
-            };
-            enum coolant_state_enum
-            {
-                M7 = 7, // Coolant Mist
-                M8 = 8, // Coolant Flood
-                M9 = 9, // Coolant Off
-                cooland_mist = 7,
-                coolant_flood = 9,
-                coolant_off = 9
-            };
-            spindle_state_enum spindle_state;
-            coolant_state_enum coolant_state;
-            struct modal_struct
-            {
-                motion_mode_enum motion;
-                plane_select_enum plane;
-                uint8_t coordinate_sytem = 2; //mm
-                state_words_enum distance_mode;
-                state_words_enum arc_distance_mode;
-                feed_rate_mode_enum feed_rate_mode;
-                units_enum units;
-                spindle_state_enum spindle_state;
-                coolant_state_enum coolant_state;
-                state_words_enum cutter_radius_compentation;
-                state_words_enum cutter_length_compentation;
-                state_words_enum path_control;
-            } modal;
+                switch (block.get_modal(mg_coordinate))
+                {
+                case G54:
+                    return 0;
+                case G55:
+                    return 1;
+                case G56:
+                    return 2;
+                case G57:
+                    return 3;
+                case G58:
+                    return 4;
+                case G59:
+                    return 5;
+                };
+                return 0;
+            }
+
             void init()
             {
-                for (int i = 0; i < Config::axis_count; i++)
+                for (uint8_t i = 0; i < 26; i++)
                 {
+                    block.parameter[i] = 0;
+                }
+                for (uint8_t i = 0; i < mg_max_value; i++)
+                {
+                    block.modal[i] = 0;
+                }
+                for (int i = 0; i < config.axis.size(); i++)
+                {
+                    p_absolute_position_steps[i] = 0;
                     absolute_position_steps[i] = 0;
                     zero_offset_steps[i] = 0;
                     unit_vector_of_last_move[i] = 0;
                 }
                 critical_status_bits = 0;
-                modal.motion = G0;
-                modal.plane = plane_XY;
-                modal.coordinate_sytem = 0;
-                modal.distance_mode = absolute;
-                modal.arc_distance_mode = absolute;
-                modal.feed_rate_mode = units_per_minute;
-                modal.units = units_mm;
-                modal.spindle_state = spindle_off;
-                modal.coolant_state = coolant_off;
+                // Load default startup state
             }
-            
+
             machine_state_class()
             {
+                p_absolute_position_steps.resize(config.axis.size());
+                absolute_position_steps.resize(config.axis.size());
+                zero_offset_steps.resize(config.axis.size());
+                unit_vector_of_last_move.resize(config.axis.size());
                 init();
             }
         };
-        
-        
         extern machine_state_class *machine_state;
         extern machine_state_class *planner_state;
+
         void init_machine_state();
+        void update_parameters(float _parameter[]);
+        void update_modals(uint8_t _modal[]);
+
         void scan_inputs(unsigned long delta_time);
         void handle_inputs();
         void handle_outputs();
+
         bool perform_emergency_stop();
         bool perform_emergency_stop(String msg);
         bool perform_unlock();
         bool perform_cycle_start();
         bool perform_feed_hold();
+        void perform_stop();
+        void perform_end_of_program();
+
         void set_machine_mode();
         String get_state_log(String pre);
         String get_state_log();
-        bool set_feed_override(float value);
+        void set_feed_override(float value);
         float get_feed_override();
+        float get_feed_override_squared();
         bool set_spindle_override(float value);
         float get_spindle_override();
         void disable_all_drives();
         void enable_all_drives();
         float getVelocity();
+        float getSpindle();
         void print_gcode_mode();
-        
+        void set_spindle_state(uint8_t command);
+        void set_coolant_state(uint8_t command);
     } // namespace MACHINE
 } // namespace RFX_CNC

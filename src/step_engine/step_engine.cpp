@@ -22,10 +22,10 @@ namespace RFX_CNC
             edge_fall,
         };
         volatile timer_mode_enum timer_mode = edge_rise;
-        volatile float fire_interrupt_in_usec = Config::step_engine_config.max_usec_between_steps;
+        volatile float fire_interrupt_in_usec = config.step_max_usec_between;
         bool set_direction_pins = true;
         bool block_timer_execution = false;
-        movement_class *current_move;
+        motion_class *current_move;
         bresenham_line_class *current_line;
 
         /* takes in a bresenham struct pointer and increments it.  Again, using an IRAM based function
@@ -59,8 +59,8 @@ namespace RFX_CNC
                         MACHINE::machine_state->absolute_position_steps[i] += subCount * bresenham->direction[i];
                         if (subCount > 0)
                         {
-                            if (Config::axis[i].step_pin >= 0)
-                                digitalWrite(Config::axis[i].step_pin, !Config::axis[i].step_pin_invert);
+                            if (config.axis[i].step_pin >= 0)
+                                digitalWrite(config.axis[i].step_pin, !config.axis[i].step_pin_invert);
                         }
                     }
                 }
@@ -109,38 +109,37 @@ namespace RFX_CNC
         {
             // This check is required because of how bresenham's work.  Each time the function is called
             // we will step even with 0 velocity because are timer is set to a max time
-            if(MACHINE::velocity_squared > 0){
+            if (MACHINE::velocity_squared > 0)
+            {
                 current_move->is_complete = step_bresenham(current_line);
             }
             if (current_move->acceleration_factor_times_two != 0)
             {
                 float V2 = MACHINE::velocity_squared;
-                if(MACHINE::is_feedhold){
+                if (MACHINE::is_feedhold)
+                {
                     // If feedhold is active, reduce the velocity to zero to smoothly decel, no mater what we are doing
                     V2 -= current_move->acceleration_factor_times_two;
                 }
-                else{
-                    float Vf2 = MIN(current_move->Vf2.target*MACHINE::feed_override_squared,current_move->Vf2.max);
-                    float Vt2 = MIN(current_move->Vt2.target*MACHINE::feed_override_squared,current_move->Vt2.max);
+                else
+                {
+                    float Vf2 = MIN(current_move->Vf2.target * MACHINE::get_feed_override_squared(), current_move->Vf2.max);
+                    float Vt2 = MIN(current_move->Vt2.target * MACHINE::get_feed_override_squared(), current_move->Vt2.max);
                     if (current_line->delta_steps[current_line->index_of_dominate_axis] <= (V2 - Vf2) / (current_move->acceleration_factor_times_two))
                         V2 -= current_move->acceleration_factor_times_two;
                     else if (V2 < Vt2)
                         V2 += current_move->acceleration_factor_times_two;
                 }
 
-                // Hard velocity limit based on configuration of axis mechanical limits
-                //if (V > current_move->Vt2.max)
-                //    V = current_move->Vt2.max;
-
                 if (V2 < 0.0001)
-                    V2 = 0; //SMALLEST_FLOAT; // Smallest Value not zero
+                    V2 = 0;
                 MACHINE::velocity_squared = V2;
                 if (MACHINE::velocity_squared == 0)
-                    usec_between_steps = Config::step_engine_config.max_usec_between_steps;
+                    usec_between_steps = config.step_max_usec_between;
                 else
                     usec_between_steps = Q_rsqrt(MAX(MACHINE::velocity_squared, 0), 0) * current_move->sec_to_usec_multiplied_by_unit_vector;
-                if (usec_between_steps < Config::step_engine_config.min_usec_between_steps)
-                    usec_between_steps = Config::step_engine_config.min_usec_between_steps;
+                if (usec_between_steps < config.step_min_usec_between)
+                    usec_between_steps = config.step_min_usec_between;
             }
             fire_interrupt_in_usec = usec_between_steps;
             return;
@@ -148,7 +147,7 @@ namespace RFX_CNC
         int32_t last_delta_time = 1;
         void IRAM_ATTR write_on_step_pin_timer(float usec)
         {
-            usec = clipValue(usec, Config::step_engine_config.usec_direction_pin_settle, Config::step_engine_config.max_usec_between_steps);
+            usec = clipValue(usec, config.dir_pin_settle_usec, config.step_max_usec_between);
             float r = usec * clock_usec_divider;
             last_delta_time = (int32_t)r;
             timerAlarmWrite(step_pins_on_timer, r, true);
@@ -156,97 +155,127 @@ namespace RFX_CNC
         void IRAM_ATTR on_step_pin_off_timer()
         {
             portENTER_CRITICAL_ISR(&timerMux);
-            for (uint8_t i = 0; i < Config::axis_count; i++)
+            for (uint8_t i = 0; i < config.axis.size(); i++)
             {
-                if (Config::axis[i].step_pin >= 0)
-                    digitalWrite(Config::axis[i].step_pin, Config::axis[i].step_pin_invert);
+                if (config.axis[i].step_pin >= 0)
+                    digitalWrite(config.axis[i].step_pin, config.axis[i].step_pin_invert);
             }
             //is_active = !rolling_fifo::is_empty();
             portEXIT_CRITICAL_ISR(&timerMux);
         }
         int usec_in_event;
         bool limit_switch_active = false;
-        int32_t *debounce;
-        uint32_t *debounce_usec;
+
         void IRAM_ATTR on_step_pin_on_timer()
         {
             if (block_timer_execution)
+            {
+                // Currently blocked do to thread safety.  Keep checking often.
+                timerAlarmWrite(step_pins_on_timer, 10, true);
                 return;
+            }
             portENTER_CRITICAL_ISR(&timerMux);
 
             if (MACHINE::machine_mode >= MACHINE::run)
             {
+                long s = micros();
                 // Enable floating point sub processor and make a copy of the existing registry
-                //<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>
                 xthal_set_cpenable(1);
                 uint32_t cp0_regs[18];
                 xthal_save_cp0(cp0_regs);
 
-                block_timer_execution = true;
-                fire_interrupt_in_usec = Config::step_engine_config.max_usec_between_steps;
-                if (current_line == nullptr)
+                fire_interrupt_in_usec = config.step_max_usec_between;
+                //####################
+                rfx_queue<RFX_CNC::operation_class>::node_class *node = operation_controller.operation_queue.getHeadPtr();
+                operation_class *operation = nullptr;
+                while (1)
                 {
-                    operation_class *operation = operation_controller.operation_queue.getHeadItemPtr();
-                    if (operation)
+                    if (node == nullptr)
                     {
-                        if (operation->execute_in_interrupt)
-                        {
-                            current_move = static_cast<movement_class *>(operation);
-                            current_line = &(current_move->bresenham);
-                        }
+                        operation = nullptr;
+                        break;
                     }
+                    operation = node->item;
+                    if (operation == nullptr)
+                        break;
+                    if (operation->block->modal_flag != 0)
+                        break;
+                    node = node->previous;
                 }
-                long s = micros();
-
-                if (current_line != nullptr)
+                //####################
+                if (operation)
                 {
-                    if (set_direction_pins)
+                    if (operation->block->modal_flag <= 3) // Nothing left to do before movement, safe to continue
                     {
-                        for (uint8_t i = 0; i < Config::axis_count; i++)
+                        current_move = operation->motion;
+                        if (operation->motion)
                         {
-                            if (Config::axis[i].dir_pin >= 0)
-                                digitalWrite(Config::axis[i].dir_pin, (current_line->direction[i] > 0) != Config::axis[i].dir_pin_invert);
-                        }
-                        fire_interrupt_in_usec = Config::step_engine_config.usec_direction_pin_settle;
-                        set_direction_pins = false;
-                    }
-                    else
-                    {
-                        bool safe_to_continue = true;
-                        for (uint8_t i = 0; i < Config::axis_count; i++)
-                        {
-                            if (current_line->direction[i] < 0)
+                            if (operation->pass_count == 0)
                             {
-                                // Handle min
-                                if (bitRead(MACHINE::critical_status_bits, i * 3)) // Status bits are [min, max, home]
-                                    safe_to_continue = false;
-                            }
-                            else if (current_line->direction[i] > 0)
-                            {
-                                // Handle max
-                                if (bitRead(MACHINE::critical_status_bits, (i * 3) + 1))
-                                    safe_to_continue = false;
-                            }
-                        }
-                        if (safe_to_continue)
-                        {
-                            handle_step_pin_on_timer();
-                            if (current_line->is_complete)
-                            {
-                                current_line = nullptr;
-                                if (current_move->execute_in_interrupt)
+                                //String result = MACHINE::get_state_log("G1");
+                                for (uint8_t i = 0; i < 26; i++)
                                 {
-                                    operation_controller.operation_queue.dequeue();
+                                    if (!isnan(operation->block->parameter[i]) && !isinf(operation->block->parameter[i]))
+                                        MACHINE::machine_state->block.parameter[i] = operation->block->parameter[i];
                                 }
-                                set_direction_pins = true;
+                                for (uint8_t i = 0; i < 12; i++)
+                                {
+                                    if (operation->block->modal[i] != 0)
+                                        MACHINE::machine_state->block.modal[i] = operation->block->modal[i];
+                                }
+                                operation->pass_count++;
                             }
-                            timerAlarmEnable(step_pins_off_timer); // !!!!!!! esp32-hal-timer.c, function needs IRAM_ATTR attribute added to timerAlarmEnable.  If ESP crashes after updates, ensure IRAM_ATTR still there  !!!!!!!
-                            usec_in_event = micros() - s;
+                            current_line = &(current_move->bresenham);
+                            if (current_line)
+                            {
+                                if (set_direction_pins)
+                                {
+                                    for (uint8_t i = 0; i < config.axis.size(); i++)
+                                    {
+                                        if (config.axis[i].dir_pin >= 0)
+                                            digitalWrite(config.axis[i].dir_pin, (current_line->direction[i] > 0) != config.axis[i].dir_pin_invert);
+                                    }
+                                    fire_interrupt_in_usec = config.dir_pin_settle_usec;
+                                    set_direction_pins = false;
+                                }
+                                else
+                                {
+                                    bool safe_to_continue = true;
+                                    // This checks limit pins
+                                    for (uint8_t i = 0; i < config.axis.size(); i++)
+                                    {
+                                        if (current_line->direction[i] < 0)
+                                        {
+                                            // Handle min
+                                            if (bitRead(MACHINE::critical_status_bits, i * 3)) // Status bits are [min, max, home]
+                                                safe_to_continue = false;
+                                        }
+                                        else if (current_line->direction[i] > 0)
+                                        {
+                                            // Handle max
+                                            if (bitRead(MACHINE::critical_status_bits, (i * 3) + 1))
+                                                safe_to_continue = false;
+                                        }
+                                    }
+                                    if (safe_to_continue)
+                                    {
+                                        handle_step_pin_on_timer();
+                                        if (current_line->is_complete)
+                                        {
+                                            operation->motion = nullptr;
+                                            operation->block->modal_flag = operation->block->modal_flag & 1; // Only safe last bit
+                                            set_direction_pins = true;
+                                        }
+                                        timerAlarmEnable(step_pins_off_timer); // !!!!!!! esp32-hal-timer.c, function needs IRAM_ATTR attribute added to timerAlarmEnable.  If ESP crashes after updates, ensure IRAM_ATTR still there  !!!!!!!
+                                        usec_in_event = micros() - s;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+               
                 write_on_step_pin_timer(fire_interrupt_in_usec);
-                block_timer_execution = false;
 
                 // Restore floating point sub processor registry to original state
                 xthal_restore_cp0(cp0_regs);
@@ -256,20 +285,15 @@ namespace RFX_CNC
         }
         void init()
         {
-            debounce = new int32_t[Config::axis_count * 3];
-            for (uint8_t i = 0; i < Config::axis_count * 3; i++)
-            {
-                debounce[i] = 0;
-            }
-            debounce_usec = new uint32_t[Config::axis_count];
-            for (uint8_t i = 0; i < Config::axis_count; i++)
-            {
-                debounce_usec[i] = Config::axis[i].home_switch_debounce_msec * 1000;
-            }
+            //debounce = new int32_t[config.axis.size() * 3];
+            //for (uint8_t i = 0; i < config.axis.size() * 3; i++)
+            //{
+            //    debounce[i] = 0;
+            // }
 
             step_pins_on_timer = timerBegin(0, 80 / clock_usec_divider, true);
             timerAttachInterrupt(step_pins_on_timer, &on_step_pin_on_timer, true);
-            write_on_step_pin_timer(Config::step_engine_config.max_usec_between_steps);
+            write_on_step_pin_timer(config.step_max_usec_between);
             timerAlarmEnable(step_pins_on_timer);
 
             step_pins_off_timer = timerBegin(1, 80, true);
@@ -282,5 +306,5 @@ namespace RFX_CNC
         //bresenham_return_enum add_move(int32_t steps[],float _Vi, float _Vt, float _Vf){
         //    return rolling_fifo::enqueue(steps,_Vi,_Vt,_Vf);
         //}
-    }; // namespace step_engine
-};     // namespace CNC_ENGINE
+    }; // namespace STEP_ENGINE
+};     // namespace RFX_CNC

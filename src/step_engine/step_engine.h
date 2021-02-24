@@ -28,7 +28,8 @@ namespace RFX_CNC{
         void init();
         extern int usec_in_event;
         extern bresenham_line_class* current_line;
-        extern movement_class* current_move;
+        extern motion_class* current_move;
+        extern bool block_timer_execution;
         //bresenham_return_enum add_move(int32_t steps[],float _Vi, float _Vt, float _Vf);
     };
 };

@@ -12,7 +12,7 @@ namespace RFX_FILE_SYSTEM{
         if(ready == true)
             return true;
         if(!SPIFFS.begin()){
-            console.logln("SPIFFS File system failed to mount",console.error);
+            //console.logln("SPIFFS File system failed to mount",console.error);
             return false;
         }  
         ready = true;

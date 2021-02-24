@@ -97,14 +97,14 @@ class console_class{
     }
     void log(String msg, int pos){
         addTabs();
-        for(int i = active_msg.length();i<pos;i++){
+        for(int i = lineLength;i<pos;i++){
             active_msg +=" ";
         }
         log(msg, routine);
     }
     void logln(String msg, int pos){
         addTabs();
-        for(int i = active_msg.length();i<pos;i++){
+        for(int i = lineLength;i<pos;i++){
             active_msg +=" ";
         }
         logln(msg, routine);
