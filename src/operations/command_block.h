@@ -2,6 +2,8 @@
 #include "Arduino.h"
 #include "..\parsers\commandParser.h"
 #include "..\nuts_and_bolts.h"
+#include <RFX_Console.h>
+#include "../CNCEngineConfig.h"
 namespace RFX_CNC
 {
     enum modal_enum
@@ -303,10 +305,6 @@ namespace RFX_CNC
                             bitWrite(new_flag, mg_arc, 1);
                             modal[mg_arc] = modal_enum::G91_1;
                         }
-                        break;
-                    case 92:
-                        bitWrite(new_flag, mg_coordinate, 1);
-                        modal[mg_coordinate] = modal_enum::G92;
                         break;
                     case 93:
                         bitWrite(new_flag, mg_feed_rate, 1);

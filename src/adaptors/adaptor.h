@@ -9,6 +9,7 @@
 #include "../CNCEngineConfig.h"
 #include <RFX_Console.h>
 #include "../nuts_and_bolts.h"
+#include "../state/machineState.h"
 
 #define grbl_version "1.1h"
 #define data_in_buffer_size 200
@@ -23,7 +24,7 @@ namespace RFX_CNC
         virtual void send_welcome()
         {
             console.logln("Grbl v" + String(grbl_version) + " [\'$\" for help]");
-            if(MACHINE::machine_state == MACHINE::locked){
+            if(MACHINE::machine_mode == MACHINE::locked){
                 send_msg("'$H'|'$X' to unlock");
             }
         }
