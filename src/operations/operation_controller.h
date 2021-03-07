@@ -1,6 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#include <RFX_Queue.h>
 #include "..\state\machineState.h"
 #include "operations.h"
 #include "..\parsers\commandParser.h"
@@ -12,7 +11,8 @@
 #include "G28.h"
 #include "G92.h"
 #include "M114.h"
-#include "motion.h"
+
+#include "..\Queue.h"
 /* 
         --- MODAL COMMANDS ---
         Motion Mode	G0, G1, G2, G3, G38.2, G38.3, G38.4, G38.5, G80
@@ -62,7 +62,7 @@ namespace RFX_CNC
 
     public:
         operation_class *current_operation = nullptr;
-        rfx_queue<operation_class> operation_queue;
+        Queue<operation_class*> operation_queue;
         operation_controller_class()
         {
         }
@@ -71,49 +71,9 @@ namespace RFX_CNC
         }
         void init(uint16_t queue_buffer_size)
         {
-            operation_queue.resize_queue(queue_buffer_size);
+            //operation_queue.resize_queue(queue_buffer_size);
         }
 
-        // Execution of 'the plan' occurs in step_engine.cpp.  There we use Vf, Vc and Vmax
-        void plan()
-        {
-            rfx_queue<operation_class>::node_class *node = operation_queue.getTailPtr();
-            if (node == nullptr)
-                return;
-            if (node->item == nullptr)
-                return;
-            float Vxt = 0;
-            float Vxm = 0;
-            while (node->item->motion)
-            {
-                motion_class *move = node->item->motion;
-                move->Vf2.target = Vxt;
-                move->Vf2.max = Vxm;
-
-                Vxt = move->dot_product_with_previous_segment * MIN(abs(move->Vf2.target + (2 * move->max_acceleration * move->length_in_units)), abs(move->Vt2.target));
-                Vxm = move->dot_product_with_previous_segment * MIN(abs(move->Vf2.max + (2 * move->max_acceleration * move->length_in_units)), abs(move->Vt2.max));
-                // If there is other than a move or program flow modal, stop.
-                if (node->item->block->modal_flag > 3)
-                    break;
-                if (!node->previous)
-                    break;
-                node = node->previous;
-                if (bitRead(node->item->block->modal_flag, mg_program_flow))
-                    break;
-            }
-        }
-/*
-        status_enum add_operation_to_queue(operation_class *operation)
-        {
-            if (MACHINE::is_emergency_stop)
-                return alarm_lock;
-            if (operation_queue.isFull())
-                return queue_full;
-            if (!operation_queue.enqueue(operation))
-                return queue_full;
-            return status_ok;
-        }
-        */
         /*
     Sitcky Parameters:  When a new REAL value is encountered, it is placed in the sticky_parameter array.
                         NAN values are never put into this array, always Real Numbers
@@ -126,13 +86,16 @@ namespace RFX_CNC
         {
             //MACHINE::planner_state->previous_state = new MACHINE::machine_state_class(*MACHINE::planner_state);
             status_enum result = operation->init(MACHINE::planner_state);
-            if (result == status_ok)
-                operation_queue.enqueue(operation);
+            if (result == status_ok){
+                if(!operation_queue.enqueue(operation)){
+                    result = status_queue_full;
+                }
+            }
             return result;
         }
         status_enum add_operation_to_queue(PARSER::command_struct *command)
         {
-            if (operation_queue.isFull(1))
+            if(operation_queue.is_full())
                 return status_queue_full;
             if (command->parameter.size() == 0)
                 return status_ok;
@@ -142,7 +105,7 @@ namespace RFX_CNC
             if(block->result != status_ok)
                 return block->result;
  
-            if (operation_queue.isEmpty())
+            if (operation_queue.is_empty())
             {
                 // First thing being added to operation queue.  Copy current machine state
                 MACHINE::planner_state = new MACHINE::machine_state_class(*MACHINE::machine_state);
@@ -175,16 +138,11 @@ namespace RFX_CNC
                 switch (block->modal[mg_coordinate])
                 {
                 case G92:
-                    //operation = new operation_G92(block);
+                    operation = new operation_G92(block);
                     break;
                 default:
                     break;
                 }
-            }
-            // If there was a coordinate specified and the coordinates were not used by anything else, use it for motion
-            if (block->coordinate_flag & (block->modal[mg_motion] == 0))
-            {
-                //block->modal[mg_motion] = MACHINE::planner_state->block.modal[mg_motion];
             }
             if (block->modal[mg_motion] != 0)
             {
@@ -223,8 +181,6 @@ namespace RFX_CNC
             if (operation == nullptr)
                 operation = new operation_class(block);
             result = push(operation);
-            if ((result == status_ok) && (operation->block->modal[mg_motion] != not_set))
-                plan();
             return result;
         }
     };

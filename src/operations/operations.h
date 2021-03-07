@@ -3,11 +3,12 @@
 #include "../state/machineState.h"
 #include "../CNCEngineConfig.h"
 #include "../nuts_and_bolts.h"
-#include "bresenham.h"
+//#include "bresenham.h"
 #include <RFX_Console.h>
 #include "..\parsers\commandParser.h"
 #include "command_block.h"
-#include "motion.h"
+#include "../step_engine/step_engine.h"
+#include "../step_engine/motion.h"
 //#include "..\adaptors\adaptor.h"
 
 
@@ -15,6 +16,7 @@ namespace RFX_CNC{
 
     class operation_class{
         public:
+        bool is_enqueued = false;
         bool is_complete = false;
         command_block* block = nullptr;
         motion_class* motion = nullptr;
@@ -25,6 +27,13 @@ namespace RFX_CNC{
 
         operation_class(command_block* _block){
             block = _block;
+            // Handle the enslaving of 
+            
+            for(uint8_t i = 0; i < config.axis.size();i++){
+                if(config.axis[i].bind >= 'A' && config.axis[i].bind <= 'Z'){
+                    block->parameter[config.axis[i].bind-'A'] = block->parameter[config.axis[i].id-'A'];
+                }
+            }
         }
         virtual ~operation_class(){
 

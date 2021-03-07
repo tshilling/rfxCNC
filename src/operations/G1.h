@@ -1,10 +1,7 @@
 #pragma once
 #include "Arduino.h"
 #include "operations.h"
-//#include "operation_controller.h"
 #include <RFX_Console.h>
-#include "bresenham.h"
-//#include "step_engine/step_engine.h"
 
 namespace RFX_CNC{
     class operation_G1 : public operation_class{      
@@ -44,7 +41,6 @@ namespace RFX_CNC{
             for(uint8_t i = 0; i<config.axis.size();i++){
                 state->unit_vector_of_last_move[i] = motion->unit_vector[i];
             }
-
             return result;
         }
     };

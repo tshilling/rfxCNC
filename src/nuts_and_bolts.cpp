@@ -1,4 +1,5 @@
 #include "nuts_and_bolts.h"
+#include <RFX_Console.h> // Common serial port out interface
 namespace RFX_CNC
 {
     // "m","cm","mm","ft","in", [from][to]
@@ -76,7 +77,7 @@ namespace RFX_CNC
         }
         return true;
     }
-    float unit_vector_return_length(float vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement){
+    float unit_vector_return_length(float vector_in[], std::vector<float>& result_out, uint8_t count, uint8_t refinement){
         float length_squared = 0;
         for(uint8_t i = 0; i < count;i++){
             length_squared += vector_in[i]*vector_in[i];
@@ -93,11 +94,14 @@ namespace RFX_CNC
         }
         return 1.0f / inverse_sqrt_of_length_squared;
     }
-    float unit_vector_return_length(int32_t vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement){
+    float unit_vector_return_length(int32_t vector_in[], std::vector<float>& result_out, uint8_t count, uint8_t refinement){
         float length_squared = 0;
         for(uint8_t i = 0; i < count;i++){
             length_squared += vector_in[i]*vector_in[i];
+            
         }
+        
+        console.logln("Length_squard sum: "+String(length_squared));
         if(length_squared == 0){
             for(uint8_t i = 0; i < count;i++){
                 result_out[i] = 0;
@@ -107,7 +111,9 @@ namespace RFX_CNC
         float inverse_sqrt_of_length_squared = Q_rsqrt(length_squared,refinement);
         for(uint8_t i = 0; i < count;i++){
             result_out[i] = vector_in[i]*inverse_sqrt_of_length_squared;
+            console.log(String(result_out[i])+", ");
         }
+        console.logln();
         return 1.0f / inverse_sqrt_of_length_squared;
     }
     /*

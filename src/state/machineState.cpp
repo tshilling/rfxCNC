@@ -192,11 +192,11 @@ namespace RFX_CNC
             }
             result += "|WPos:";
             for(uint8_t i = 0; i <config.axis.size();i++){
-                result += String(machine_state->steps_to_coordinate(machine_state->absolute_position_steps[i],i));
+                result += String(machine_state->steps_to_coordinate(machine_state->absolute_position_steps[i],i)/(float)config.axis[i].steps_per_unit);
                 if(i!= config.axis.size()-1)
                     result+=",";
             }
-            result+="|Bf:"+String(operation_controller.operation_queue.get_available()) + ","+String(SERIAL_SIZE_RX - Serial.available());
+            result+="|Bf:"+String(operation_controller.operation_queue.get_space_available()) + ","+String(SERIAL_SIZE_RX - Serial.available());
             result+="|F:"+String(machine_state->get_feed_rate());
             result+="|S:"+String(machine_state->get_spindle_speed());
             result += ">";
@@ -206,31 +206,6 @@ namespace RFX_CNC
         {
             return get_state_log("");
         }
-        /*
-        Inputs are mapped to critical_status_bits, a 32bit uint.
-        Status_bits are for critical debounced inputs (limits, E-Stop, Probing) Things that stop the machine
-            bit         Assigned to:
-             0-2    Axis 0 [Min, Max, Home]
-             3-5    Axis 1 [Min, Max, Home]
-             6-8    Axis 2 [Min, Max, Home]
-             9-11   Axis 3 [Min, Max, Home]
-            12-14   Axis 4 [Min, Max, Home]
-            15-17   Axis 5 [Min, Max, Home]
-            18-20   Axis 6 [Min, Max, Home]
-            21-23   Axis 7 [Min, Max, Home]
-            24-27   Axis 8 [Min, Max, Home]
-            28      
-            29      
-            30      Probe
-            31      E-STOP
-                    
-        Control_bits... TBD
-                    single line operation on/off    Digital
-                    spindle on/off                  Digitial
-                    coolant on/off                  Digital
-                    feed override                   Analog
-                    spindle override                Analog
-    */
         uint32_t previous_critical_status_bits = 0;
 
         void scan_inputs(unsigned long delta_time)
@@ -269,16 +244,6 @@ namespace RFX_CNC
                     }
                 }
             }
-
-            // Copy inputs to coorisponding bit
-            for (uint8_t i = 0; i < config.axis.size(); i++)
-            {
-                bitWrite(critical_status_bits, i * 3, config.critical_inputs[config.axis[i].limit_min_map].state);
-                bitWrite(critical_status_bits, i * 3 + 1, config.critical_inputs[config.axis[i].limit_max_map].state);
-                bitWrite(critical_status_bits, i * 3 + 2, config.critical_inputs[config.axis[i].home_map].state);
-            }
-            bitWrite(critical_status_bits, ESTOP_BIT, config.critical_inputs[config.estop_map].state);
-            bitWrite(critical_status_bits, PROBE_BIT, config.critical_inputs[config.probe_map].state);
         }
         void disable_all_drives()
         {
@@ -312,7 +277,7 @@ namespace RFX_CNC
                 machine_mode = need_homing;
                 return;
             }
-            if (operation_controller.operation_queue.isEmpty())
+            if (operation_controller.operation_queue.is_empty())
             {
                 machine_mode = idle;
                 return;
@@ -325,7 +290,7 @@ namespace RFX_CNC
         {
             if (MACHINE::machine_mode < MACHINE::need_homing)
                 return false;
-            operation_class *operation = operation_controller.operation_queue.getHeadItemPtr();
+            operation_class *operation = operation_controller.operation_queue.head();//.getHeadItemPtr();
             if (operation)
             {
                 if (MACHINE::machine_mode == MACHINE::need_homing)
@@ -375,7 +340,7 @@ namespace RFX_CNC
             return true;
         }
 
-        bool perform_emergency_stop(String msg)
+        bool perform_emergency_stop()
         {
             /*
             Immediately halts and safely resets without a power-cycle.
@@ -392,20 +357,13 @@ namespace RFX_CNC
             }
             velocity_squared = 0;
 
-            STEP_ENGINE::current_line = nullptr;
-            STEP_ENGINE::current_move = nullptr;
-
             disable_all_drives();
-            operation_controller.operation_queue.flush();
+            operation_controller.operation_queue.clear();
 
             set_spindle_state(M5);
             set_coolant_state(M9);
-            //console.logln("EMERGENCY STOP TRIGGERED: " + msg);
+            adaptor.send_critical();
             return true;
-        }
-        bool perform_emergency_stop()
-        {
-            return perform_emergency_stop("");
         }
 
         void perform_stop()
@@ -417,7 +375,7 @@ namespace RFX_CNC
         {
             //console.logln("End Of Program");
             perform_stop();
-            operation_controller.operation_queue.flush();
+            operation_controller.operation_queue.clear();
         }
         
         void set_spindle_state(uint8_t command)

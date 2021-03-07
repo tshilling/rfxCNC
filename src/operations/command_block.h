@@ -26,7 +26,6 @@ namespace RFX_CNC
         G57,
         G58,
         G59,
-        G92,
         G28,
         G30,    // End Coordinate Select
         
@@ -38,6 +37,7 @@ namespace RFX_CNC
         G90_1, // Absolute Arc Distance Mode
         G91,   // Incremental Distance Mode
         G91_1, // Incremental Arc Distance Mode
+        G92,
         G93,   // Inverse Feed Rate
         G94,   // Normal Feed Rate (units/sec)
         G20,   // Units in
@@ -77,7 +77,20 @@ namespace RFX_CNC
         mg_spindle,
         mg_feed_rate,
         mg_max_value,
+        mg_not_set
     };
+    struct command_group_struct{
+        char  letter            = 0;
+        float number            = 0;
+        modal_group_enum group  = mg_not_set;
+    };
+    extern std::vector<command_group_struct> valid_commands();
+    void add_command(char letter, float number, modal_group_enum group){
+        command_group_struct cgs;
+        cgs.letter = letter;
+        cgs.number = number;
+        cgs.group = group;
+    }
     class command_block
     {
     public:
@@ -290,6 +303,10 @@ namespace RFX_CNC
                             bitWrite(new_flag, mg_arc, 1);
                             modal[mg_arc] = modal_enum::G91_1;
                         }
+                        break;
+                    case 92:
+                        bitWrite(new_flag, mg_coordinate, 1);
+                        modal[mg_coordinate] = modal_enum::G92;
                         break;
                     case 93:
                         bitWrite(new_flag, mg_feed_rate, 1);

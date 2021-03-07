@@ -97,8 +97,8 @@ namespace RFX_CNC
     float get_length(float vector[], uint8_t count);
     float Q_rsqrt(float number, uint8_t refinement);
     bool unit_vector(float vector_in[], float result_out[], uint8_t count, uint8_t refinement);
-    float unit_vector_return_length(float vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement);
-    float unit_vector_return_length(int32_t vector_in[], std::vector<float> result_out, uint8_t count, uint8_t refinement);
+    float unit_vector_return_length(float vector_in[], std::vector<float>& result_out, uint8_t count, uint8_t refinement);
+    float unit_vector_return_length(int32_t vector_in[], std::vector<float>& result_out, uint8_t count, uint8_t refinement);
     float IRAM_ATTR clipValue(float input, float min, float max);
     uint8_t index_of_max(float input[], uint8_t count);
     uint8_t index_of_max(int32_t input[], uint8_t count);

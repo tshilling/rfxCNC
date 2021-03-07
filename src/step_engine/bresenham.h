@@ -14,7 +14,12 @@ class bresenham_line_class{
         uint8_t  index_of_dominate_axis = 0;
         uint8_t  index_of_max_axis = 0;
         uint8_t  smoothing = 0;
-        bool is_complete = false;
+        enum state_enum{
+            first,
+            running,
+            complete
+        };
+        state_enum state = first; 
         bool is_infinate = false;
         bresenham_line_class(){
             delta_steps.resize(config.axis.size());
@@ -27,7 +32,6 @@ class bresenham_line_class{
             
         }
         void init(int32_t steps[]){
-            is_complete = true;
             for(uint8_t i = 0; i < config.axis.size();i++){
                 delta_steps[i] = steps[i];
                 if(delta_steps[i] < 0)
@@ -63,7 +67,6 @@ class bresenham_line_class{
                 D[i]                = double_delta[i] - dominate_delta;
                 smoothing_count[i]  = 0;
             } 
-            is_complete = (delta_steps[index_of_dominate_axis]<=0);
         }
     };
 }

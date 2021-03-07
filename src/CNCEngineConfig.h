@@ -33,9 +33,10 @@ namespace RFX_CNC
     struct axis_struct
     {
         char id = 'X';     // Symbol used to control
-        char follow = 'X'; // Make this axis follow
+        char bind = 0; // Make this axis follow
         bool is_rotary = false;
         bool is_discrete = true;
+        bool is_kinematic = true;
 
         float min = 0;
         float max = 0;
@@ -389,7 +390,7 @@ namespace RFX_CNC
                         for (uint8_t i = 0; i < axis.size(); i++)
                         {
                             axis_json[i]["axis_id"].isNull() ? axis[i].id = 0 : axis[i].id = ((const char *)axis_json[i]["axis_id"])[0];
-                            axis_json[i]["follow"].isNull() ? axis[i].follow = 0 : axis[i].follow = ((const char *)axis_json[i]["follow"])[0];
+                            axis_json[i]["follow"].isNull() ? axis[i].bind = 0 : axis[i].bind = ((const char *)axis_json[i]["follow"])[0];
                             axis_json[i]["is_rotary"].isNull() ? axis[i].is_rotary = false : axis[i].is_rotary = axis_json[i]["is_rotary"];
                             axis_json[i]["is_discrete"].isNull() ? axis[i].is_discrete = false : axis[i].is_discrete = axis_json[i]["is_discrete"];
                             axis_json[i]["require_home"].isNull() ? axis[i].require_home = false : axis[i].require_home = axis_json[i]["require_home"];

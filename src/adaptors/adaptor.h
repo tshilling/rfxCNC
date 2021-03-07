@@ -23,6 +23,12 @@ namespace RFX_CNC
         virtual void send_welcome()
         {
             console.logln("Grbl v" + String(grbl_version) + " [\'$\" for help]");
+            if(MACHINE::machine_state == MACHINE::locked){
+                send_msg("'$H'|'$X' to unlock");
+            }
+        }
+        virtual void send_critical(){
+            send_msg("Reset to continue");
         }
         virtual void send_state()
         {
@@ -31,13 +37,14 @@ namespace RFX_CNC
             result += "MPos:";
             for (uint8_t i = 0; i < config.axis.size(); i++)
             {
-                result += String((float)MACHINE::machine_state->absolute_position_steps[i] / (float)config.axis[i].steps_per_unit);
+                result += String((float)MACHINE::machine_state->absolute_position_steps[i]);// / (float)config.axis[i].steps_per_unit);
                 if (i != config.axis.size() - 1)
                     result += ",";
             }
-            result += "|Bf:" + String(operation_controller.operation_queue.get_available()) + "," + String(SERIAL_SIZE_RX - Serial.available());
-            result += "|FS:" + String(MACHINE::machine_state->get_feed_rate());
+            result += "|Bf:" + String(operation_controller.operation_queue.get_space_available()) + "," + String(SERIAL_SIZE_RX - Serial.available());
+            result += "|FSV:" + String(MACHINE::machine_state->get_feed_rate());
             result += "," + String(MACHINE::machine_state->get_spindle_speed());
+            result += "," + String(MACHINE::getVelocity());
             result += "|WCO:"; // TODO, what the heck is WCO?
             for (uint8_t i = 0; i < config.axis.size(); i++)
             {
@@ -161,6 +168,7 @@ namespace RFX_CNC
             if (commands->parameter[0].key.equals("$X"))
             {
                 MACHINE::perform_unlock();
+                send_msg("Caution: Unlocked");
                 return status_ok;
             }
             if (commands->parameter[0].key.equals("$G"))

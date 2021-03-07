@@ -3,7 +3,7 @@
 USAGE:
   Designed around using objects with inheritance and maintaining a linking / delinking schema.
   Using the following pattern, will maintain the object on the heap, independant of scope.
-    base* B = new case;
+    base* B = new base;
     child* C =  new child;
     queue.enqueue(B);
     queue.enqueue(C);
@@ -22,7 +22,6 @@ class rfx_queue{
   bool locked = false;
   class node_class{
    public:
-    String name = "";
     T* item;
     node_class* next;
     node_class* previous;
@@ -40,7 +39,6 @@ class rfx_queue{
     if(count>=nodes.size())
       return false; // Full
     nodes[index_of_Tail].item = item;
-    nodes[index_of_Tail].name ="C:"+String(count);
     if(count==0){
       Head = &nodes[index_of_Tail];
       Tail = &nodes[index_of_Tail];

@@ -4,6 +4,7 @@
 #include "CNCEngineConfig.h"
 #include "nuts_and_bolts.h"
 #include "../operations/command_block.h"
+#include "../adaptors/adaptor.h"
 
 #define _A_ 0
 #define _B_ 1

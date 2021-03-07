@@ -1,7 +1,6 @@
 
 #include <Arduino.h>
 #include "CNCEngineConfig.h"
-
 #include "step_engine/step_engine.h"
 
 #include "CNCEngine.h"
@@ -78,7 +77,6 @@ namespace RFX_CNC
   unsigned long startTime = 0;
   TaskHandle_t taskHandle;
 
-  
   void _engineLoop(void *parameter)
   {
     // Turn off watchdog, allows for long running processess
@@ -93,46 +91,91 @@ namespace RFX_CNC
     operation_controller.init(64);
 
     MACHINE::perform_unlock();
+    
 
-    unsigned long sp_previous_time = startTime;
+    unsigned long sp_previous_time = micros();
+    unsigned long lp_previous_time = micros();
 
     operation_class *operation = nullptr;
 
     adaptor.send_welcome();
+    config.axis[2].is_discrete = false;
+    config.axis[2].is_kinematic = false;
+    config.axis[0].bind = 'A';
+
+    operation_controller.add_operation_to_queue(PARSER::parse("G1X5F180").command);
+    operation_controller.add_operation_to_queue(PARSER::parse("G1X0F180").command);
     for (;;)
     {
       vTaskDelay(1); // Not always garanteed to get to end of loop but must always have a vTaskDelay, keep at start of loop
-      while (Serial.available()){
-        if(!adaptor.push_stream_in(Serial.read()))
+                     // t = STEP_ENGINE::handle_step_event();
+      while (Serial.available())
+      {
+        if (!adaptor.push_stream_in(Serial.read()))
           break;
       }
       adaptor.service();
       //###################################
       //###### Short Period Function ######
       unsigned long short_delta = micros() - sp_previous_time;
+      unsigned long long_delta = micros() - lp_previous_time;
       if (short_delta >= SHORT_PERIOD)
-      {                                                             // 10 msec or 100Hz
+      {                                                     // 10 msec or 100Hz
         sp_previous_time = sp_previous_time + SHORT_PERIOD; // Deals with time variations, little bit of excess in one will result in a little short in the next
         MACHINE::scan_inputs(short_delta);
         MACHINE::handle_inputs();
         MACHINE::handle_outputs();
       }
       MACHINE::set_machine_mode();
-
       if (MACHINE::machine_mode >= MACHINE::run)
       {
-        operation = operation_controller.operation_queue.getHeadItemPtr();      
-        if (operation){
-          //if(operation->block->modal_flag > mg_motion || operation->block->modal_flag < mg_motion)
-            operation->execute(MACHINE::machine_state);
+
+        for (uint8_t i = 0; i < operation_controller.operation_queue.count(); i++)
+        {
+          operation_class *op = operation_controller.operation_queue.head(i);
+          if (op->block->modal_flag > 3) // Modal flags greater than 3, means there are prepatory commands, do not push
+            break;
+          if (op->motion)
+          {
+            if (!op->is_enqueued)
+            {
+              if (STEP_ENGINE::push(op->motion))
+              {
+                op->is_enqueued = true;
+              }
+              else
+              {
+                break;
+              }
+            }
+          }
+          if (op->block->modal_flag != mg_motion << 1) // if there are any other modal flags besides motion, stop, there are post commands
+            break;
         }
-        if(operation->block->modal_flag==0){
-            operation_controller.operation_queue.dequeue();
+
+        if (operation_controller.operation_queue.count() > 0)
+        {
+          operation = operation_controller.operation_queue.head();
+          if (operation->motion)
+          {
+            if (operation->motion->is_complete)
+              bitWrite(operation->block->modal_flag, mg_motion, 0);
+          }
+          if (operation->block->modal_flag == 0)
+          {
+            operation_controller.operation_queue.deqeue();//dequeue();
+          }
         }
+      }
+      if (long_delta >= LONG_PERIOD)
+      {                                                    // 10 msec or 100Hz
+        lp_previous_time = lp_previous_time + LONG_PERIOD; // Deals with time variations, little bit of excess in one will result in a little short in the next
+        if (MACHINE::machine_mode >= MACHINE::run)
+          adaptor.send_state();
       }
     }
   }
- 
+
   void init()
   {
     //RFX_Server::setWebSocketCallback(process_string);
@@ -140,7 +183,7 @@ namespace RFX_CNC
     xTaskCreatePinnedToCore(
         _engineLoop, /* Function to implement the task */
         "CNCEngine", /* Name of the task */
-        20000,       /* Stack size in words */
+        40000,       /* Stack size in words */
         NULL,        /* Task input parameter */
         2,           /* Priority of the task */
         &taskHandle, /* Task handle. */

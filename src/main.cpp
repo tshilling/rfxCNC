@@ -78,7 +78,6 @@ void setup()
 
   RFX_FILE_SYSTEM::init();
   //RFX_Server::init();
-
   //delay(1000);
 
   RFX_CNC::init();
@@ -89,9 +88,5 @@ void setup()
 // Loop runs on Core 1
 void loop()
 {
-// ESP32 has multiple cores and plays well with virtual tasks,
-// if the target is an ESP32 we will use vtasks, else you need to service manually.
-#ifndef ESP32
-  RFX_Server::tend();
-#endif
+
 }
